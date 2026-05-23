@@ -5,9 +5,8 @@ Writes:
   - /etc/arcnode/tls/server.{crt,key} (uploaded cert OR generated self-signed)
   - /var/lib/arcnode/setup-complete (marker — disables the wizard on next boot)
 
-Then kicks `docker compose up -d` on the appliance compose bundle to
-bring the app services up. Service-up wait is left to the caller (the
-FastAPI endpoint can poll while streaming progress).
+Then `systemctl start arcnode-compose.service` to hand off to the
+long-running unit. Service-up wait is left to systemd's healthchecks.
 """
 
 from __future__ import annotations
@@ -22,8 +21,6 @@ ETC_DIR = Path("/etc/arcnode")
 TLS_DIR = ETC_DIR / "tls"
 SECRETS_PATH = ETC_DIR / "secrets.env"
 SETUP_COMPLETE_MARKER = Path("/var/lib/arcnode/setup-complete")
-COMPOSE_FILE = ETC_DIR / "compose" / "docker-compose.yaml"
-
 # Env-var name per API key id. Drives what the apps read.
 API_KEY_ENV_NAMES: dict[str, str] = {
     "openweathermap": "OPENWEATHERMAP_API_KEY",
@@ -93,10 +90,15 @@ def write_tls(tls: TlsConfig, target_dir: Path = TLS_DIR) -> None:
     (target_dir / "server.crt").chmod(0o644)
 
 
-def start_services(compose_file: Path = COMPOSE_FILE) -> None:
-    """`docker compose up -d` against the appliance compose bundle."""
-    subprocess.run(  # noqa: S603 — fixed argv, no shell
-        ["docker", "compose", "-f", str(compose_file), "up", "-d"],
+def kick_compose_unit() -> None:
+    """Trigger systemd's arcnode-compose.service via systemctl.
+
+    Preferred over calling docker compose directly — lets systemd manage
+    state, log to journald, restart on failure. Wizard ends up handing off
+    to a real long-running unit instead of leaving a detached compose run.
+    """
+    subprocess.run(
+        ["systemctl", "start", "arcnode-compose.service"],
         check=True,
     )
 
@@ -113,8 +115,10 @@ def is_setup_complete(marker: Path = SETUP_COMPLETE_MARKER) -> bool:
 
 
 def apply_all(req: ApplyRequest) -> None:
-    """Full apply pipeline — write everything, start services, mark done."""
+    """Full apply pipeline — write everything, mark done, hand off to systemd."""
     write_secrets(req.api_keys, req.admin.password)
     write_tls(req.tls)
-    start_services()
+    # Marker BEFORE the systemctl call — arcnode-compose has
+    # ConditionPathExists=setup-complete so systemd would skip it otherwise.
     mark_setup_complete()
+    kick_compose_unit()

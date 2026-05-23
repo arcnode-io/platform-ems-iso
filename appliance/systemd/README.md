@@ -40,8 +40,7 @@ live-build hook copies these into `/etc/systemd/system/` and runs
 `systemctl enable arcnode-wizard arcnode-compose minio ollama` in the chroot.
 The wizard exits + drops the marker → next boot brings the app stack up.
 
-The wizard does NOT call `systemctl restart arcnode-compose` itself — the
-operator-side flow is: apply writes `secrets.env` + marker, returns 200,
-operator reloads page → wizard 410s → operator power-cycles or runs
-`systemctl start arcnode-compose` from a console. TODO: have the wizard
-sd-notify and trigger compose itself once we trust the apply pipeline.
+The wizard's apply pipeline calls `systemctl start arcnode-compose.service`
+itself (see `src/apply.py:kick_compose_unit`). Operator submits → marker
+written → systemd kicks compose. Operator hits the HMI URL the wizard
+returns. No power-cycle needed.

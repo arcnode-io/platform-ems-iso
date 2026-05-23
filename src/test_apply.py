@@ -9,6 +9,7 @@ import pytest
 
 from src.apply import (
     is_setup_complete,
+    kick_compose_unit,
     mark_setup_complete,
     write_secrets,
     write_tls,
@@ -104,6 +105,16 @@ def test_write_tls_self_signed_calls_openssl(tmp_path: Path) -> None:
     args = run.call_args.args[0]
     assert args[0] == "openssl"
     assert "req" in args and "-x509" in args
+
+
+def test_kick_compose_unit_calls_systemctl_start() -> None:
+    # Arrange + Act
+    with patch("src.apply.subprocess.run") as run:
+        kick_compose_unit()
+
+    # Assert — exact systemctl argv shape
+    args = run.call_args.args[0]
+    assert args == ["systemctl", "start", "arcnode-compose.service"]
 
 
 def test_setup_complete_marker_round_trip(tmp_path: Path) -> None:
