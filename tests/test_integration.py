@@ -1,14 +1,55 @@
-from src.app import app
+"""End-to-end integration: spin a real app via TestClient, walk all routes."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from src.app import create_app
 
 
-class TestIntegration:
-    """Integration tests for the application."""
+def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
+    """Wizard binds /, /setup/identity, /setup/apply with no setup marker."""
+    # Arrange — baked install.json + no marker
+    identity = tmp_path / "install.json"
+    identity.write_text(
+        json.dumps(
+            {
+                "customer": "Acme",
+                "site": "Site-A",
+                "market": "ERCOT · HB_NORTH",
+                "isoVersion": "1.0.0",
+                "isoBuiltAt": "23 May 2026",
+                "orderId": "test",
+                "rev": "Rev 1",
+            }
+        )
+    )
+    marker = tmp_path / "setup-complete"
+    app = create_app(
+        identity_path=identity,
+        setup_marker=marker,
+        apply_fn=lambda _: None,  # don't actually touch disk + systemd
+    )
+    client = TestClient(app)
 
-    def test_app(self) -> None:
-        """Test the main app function with basic addition."""
-        # arrange
-        expected = 3
-        # act
-        actual = app(1, 2)
-        # assert
-        assert actual == expected
+    # Act + Assert — home page renders, identity round-trips, apply succeeds
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "window.INSTALL_IDENTITY" in home.text
+
+    ident = client.get("/setup/identity").json()
+    assert ident["customer"] == "Acme"
+
+    apply_resp = client.post(
+        "/setup/apply",
+        json={
+            "apiKeys": [],
+            "tls": {"mode": "self_signed"},
+            "admin": {"username": "admin", "password": "long-enough-pw"},
+        },
+    )
+    assert apply_resp.status_code == 200
+    assert apply_resp.json() == {"ok": True, "redirect": "/"}

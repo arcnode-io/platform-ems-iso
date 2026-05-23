@@ -19,21 +19,34 @@ checks:
         coverage_format: cobertura
         path: coverage.xml
 
-# Build the reference ISO + upload to S3. Same shape as docker repos —
-# one artifact per main push, deterministic key, no per-customer state.
-# Per-customer baking is platform-api's job (subprocess `lb build` against
-# this same live-build dir, with the overlay swapped in), NOT a CI stage.
+# Build reference ISO + upload. Populates includes.chroot first so the
+# hooks find systemd units + compose bundle + wizard source + install.json.
 publish:
   stage: publish
   script:
-    # includes.chroot is populated at commit time — appliance/systemd,
-    # appliance/compose, src/ all already live there.
+    # Fetch third-party apt repo keys (timescale + neo4j) into archives/
+    - curl -fsSL https://packagecloud.io/timescale/timescaledb/gpgkey
+        -o live-build/config/archives/timescale.key.chroot
+    - curl -fsSL https://debian.neo4j.com/neotechnology.gpg.key
+        -o live-build/config/archives/neo4j.key.chroot
+    # Populate includes.chroot — appliance/* lands at well-known paths
+    - mkdir -p live-build/config/includes.chroot/etc/systemd/system
+    - cp appliance/systemd/*.service live-build/config/includes.chroot/etc/systemd/system/
+    - mkdir -p live-build/config/includes.chroot/etc/arcnode/compose
+    - cp appliance/compose/* live-build/config/includes.chroot/etc/arcnode/compose/
+    - mkdir -p live-build/config/includes.chroot/etc/arcnode
+    - cp live-build/config/install.json.reference live-build/config/includes.chroot/etc/arcnode/install.json
+    - mkdir -p live-build/config/includes.chroot/opt/arcnode/wizard
+    - cp -r src pyproject.toml uv.lock cfg.yml live-build/config/includes.chroot/opt/arcnode/wizard/
+    # Build
     - cd live-build
     - sudo lb clean --purge
     - sudo lb config
     - sudo lb build
     - cd ..
+    # Upload to deterministic S3 key per commit
     - ISO=$(ls live-build/arcnode-ems-*.iso | head -1)
+    - test -n "$ISO" || (echo "no ISO produced"; exit 1)
     - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
   only:
     - main
