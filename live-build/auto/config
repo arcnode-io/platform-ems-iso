@@ -21,4 +21,5 @@ lb config noauto \
   --linux-flavours amd64 \
   --memtest none \
   --apt-recommends false \
+  --bootstrap-flags "--include=ca-certificates" \
   "${@}"
