@@ -1,0 +1,40 @@
+# Packages installed into the live chroot at build time.
+# Order grouped by role; comments cite *why* each one belongs in the image.
+
+# --- Base + boot ----------------------------------------------------
+linux-image-amd64
+firmware-linux
+live-boot
+live-config
+systemd-sysv
+openssh-server
+ca-certificates
+curl
+gnupg
+sudo
+apt-transport-https
+
+# --- Data daemons (debian-native) -----------------------------------
+postgresql-16
+postgresql-16-pgvector
+# Reason: timescaledb deb comes from Timescale's own apt repo — wired in
+# config/archives/timescale.list.chroot, listed here so apt resolves it.
+timescaledb-2-postgresql-16
+neo4j
+
+# --- Container runtime ----------------------------------------------
+# Reason: docker.io from debian, NOT docker-ce — smaller, no third-party
+# repo, sufficient for compose v2 (which is a plugin we install separately).
+docker.io
+docker-compose-plugin
+
+# --- App-stack runtime helpers --------------------------------------
+python3
+python3-venv
+# uv installed via hook (no debian package yet)
+
+# --- Optional but useful diagnostics --------------------------------
+htop
+iotop
+lsof
+tcpdump

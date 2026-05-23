@@ -1,0 +1,4 @@
+#!/bin/sh
+# `lb build` wrapper — fail loud on any step, log everything for CI capture.
+set -e
+lb build noauto "${@}" 2>&1 | tee build.log

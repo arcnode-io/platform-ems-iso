@@ -1,0 +1,18 @@
+#!/bin/sh
+# Copy our systemd units into /etc/systemd/system and enable them.
+# Unit files live in includes.chroot/etc/systemd/system already; this
+# hook just runs systemctl enable so they fire on first boot.
+set -e
+
+# Reason: ConditionPathExists in arcnode-compose.service keeps it dormant
+# until the wizard drops /var/lib/arcnode/setup-complete — safe to enable
+# all of them up front.
+systemctl enable arcnode-wizard.service
+systemctl enable arcnode-compose.service
+systemctl enable minio.service
+systemctl enable ollama.service
+systemctl enable docker.service
+systemctl enable neo4j.service
+systemctl enable postgresql@16-timeseries.service
+systemctl enable postgresql@16-document.service
+systemctl enable postgresql@16-vector.service

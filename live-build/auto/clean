@@ -1,0 +1,4 @@
+#!/bin/sh
+# `lb clean` wrapper — full reset between builds.
+set -e
+lb clean --purge "${@}"

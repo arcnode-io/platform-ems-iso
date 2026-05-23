@@ -1,0 +1,18 @@
+#!/bin/sh
+# Create service accounts for the daemons that aren't already users.
+# postgres + neo4j users come from their apt packages.
+set -e
+
+# minio — owns /opt/arcnode/minio
+if ! id minio-user >/dev/null 2>&1; then
+  useradd --system --home-dir /opt/arcnode/minio --shell /usr/sbin/nologin minio-user
+fi
+
+# ollama — owns /opt/arcnode/ollama
+if ! id ollama >/dev/null 2>&1; then
+  useradd --system --home-dir /opt/arcnode/ollama --shell /usr/sbin/nologin ollama
+fi
+
+mkdir -p /opt/arcnode/{minio/data,ollama/models,wizard,compose}
+chown -R minio-user:minio-user /opt/arcnode/minio
+chown -R ollama:ollama /opt/arcnode/ollama
