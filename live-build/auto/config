@@ -21,5 +21,16 @@ lb config noauto \
   --linux-flavours amd64 \
   --memtest none \
   --apt-recommends false \
-  --bootstrap-include "ca-certificates" \
   "${@}"
+
+# Seed ca-certificates into the debootstrap phase so the chroot has a CA
+# bundle in /etc/ssl/certs BEFORE apt-get update reaches the HTTPS-only
+# third-party repos (debian.neo4j.com, packagecloud.io). The cli flag
+# names for this vary across live-build versions (--bootstrap-include,
+# --bootstrap-flags, --debootstrap-options); editing the generated
+# config/bootstrap is version-agnostic.
+if grep -q '^LB_BOOTSTRAP_INCLUDES=' config/bootstrap 2>/dev/null; then
+  sed -i 's/^LB_BOOTSTRAP_INCLUDES=.*/LB_BOOTSTRAP_INCLUDES="ca-certificates"/' config/bootstrap
+else
+  echo 'LB_BOOTSTRAP_INCLUDES="ca-certificates"' >> config/bootstrap
+fi
