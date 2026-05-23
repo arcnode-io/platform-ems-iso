@@ -9,9 +9,8 @@ stages:
 # so a fetch-strategy pipeline dies in checks before any user script gets
 # to chown them back. A fresh clone sidesteps the entire problem; ~5-10s
 # overhead. publish also after_scripts a chown for tidiness.
-default:
-  variables:
-    GIT_STRATEGY: clone
+variables:
+  GIT_STRATEGY: clone
 
 checks:
   stage: check
