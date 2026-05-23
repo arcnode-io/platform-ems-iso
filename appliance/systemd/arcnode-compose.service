@@ -1,0 +1,24 @@
+[Unit]
+Description=ARCNODE app stack (docker compose)
+# Wait for everything the compose services touch: docker, all 3 postgres
+# clusters, neo4j, minio, ollama. Hard requirement on docker; the data
+# daemons are After-only because compose can retry-connect.
+Requires=docker.service
+After=docker.service
+After=postgresql@16-timeseries.service postgresql@16-document.service postgresql@16-vector.service
+After=neo4j.service minio.service ollama.service
+# Only start once setup wizard has completed — before that there's no
+# secrets.env so compose would fail half its containers anyway.
+ConditionPathExists=/var/lib/arcnode/setup-complete
+ConditionPathExists=/etc/arcnode/secrets.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Reason: docker compose up -d returns once containers are launched (not
+# healthy). systemd marks the unit active; healthchecks live in compose.
+ExecStart=/usr/bin/docker compose -f /etc/arcnode/compose/docker-compose.yaml --env-file /etc/arcnode/secrets.env up -d
+ExecStop=/usr/bin/docker compose -f /etc/arcnode/compose/docker-compose.yaml down
+
+[Install]
+WantedBy=multi-user.target

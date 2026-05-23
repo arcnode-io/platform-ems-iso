@@ -1,0 +1,21 @@
+[Unit]
+Description=MinIO S3-compatible object store
+Documentation=https://min.io/docs/minio/linux/index.html
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=minio-user
+Group=minio-user
+# Reason: MINIO_ROOT_USER + MINIO_ROOT_PASSWORD live in the env file the
+# wizard wrote; world-readable on the appliance is fine (single-tenant).
+EnvironmentFile=-/etc/arcnode/minio.env
+WorkingDirectory=/opt/arcnode/minio
+ExecStart=/usr/local/bin/minio server /opt/arcnode/minio/data --console-address ":9001"
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

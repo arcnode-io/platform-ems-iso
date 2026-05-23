@@ -1,0 +1,22 @@
+[Unit]
+Description=ARCNODE first-boot setup wizard
+After=network-online.target
+Wants=network-online.target
+# Once the marker exists the wizard refuses anyway, but skip the unit
+# entirely so port 80/443 stays free for nginx/Caddy on the HMI.
+ConditionPathExists=!/var/lib/arcnode/setup-complete
+
+[Service]
+Type=exec
+User=root
+# Reason: root because we bind 80/443 + write to /etc/arcnode + /var/lib/arcnode.
+# Wizard drops privileges via the apply pipeline — services in compose run as
+# their own UIDs.
+WorkingDirectory=/opt/arcnode/wizard
+ExecStart=/opt/arcnode/wizard/.venv/bin/python -m src.main
+EnvironmentFile=-/etc/arcnode/wizard.env
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
