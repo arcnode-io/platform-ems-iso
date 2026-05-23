@@ -18,6 +18,8 @@ curl
 gnupg
 sudo
 apt-transport-https
+# Ollama's install.sh extracts a zstd-compressed tarball
+zstd
 
 # --- Data daemons (debian-native only here) ------------------------
 postgresql-15
