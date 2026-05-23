@@ -3,8 +3,17 @@ stages:
   - publish
   - mirror
 
+# Workspace heal — `sudo lb build` in publish leaves root-owned files
+# (chroot/, binary/, config/hooks/normal/, cache/, .build/). Subsequent
+# pipelines' git-fetch cleanup can't remove them as the gitlab-runner
+# user, so checks fails on the *next* run. Run this first on every job
+# so the next clone/fetch is clean regardless of the prior run's outcome.
+.heal-workspace: &heal-workspace
+  - sudo chown -R gitlab-runner:gitlab-runner . 2>/dev/null || true
+
 checks:
   stage: check
+  before_script: *heal-workspace
   script:
     - uv run poe checks
     - uv run pytest --junitxml=junit.xml
@@ -23,12 +32,11 @@ checks:
 # hooks find systemd units + compose bundle + wizard source + install.json.
 publish:
   stage: publish
+  before_script: *heal-workspace
+  after_script:
+    # Always chown back so the next pipeline's git fetch can clean up.
+    - sudo chown -R gitlab-runner:gitlab-runner . 2>/dev/null || true
   script:
-    # Fetch third-party apt repo keys (timescale + neo4j) into archives/
-    - curl -fsSL https://packagecloud.io/timescale/timescaledb/gpgkey
-        -o live-build/config/archives/timescale.key.chroot
-    - curl -fsSL https://debian.neo4j.com/neotechnology.gpg.key
-        -o live-build/config/archives/neo4j.key.chroot
     # Populate includes.chroot — appliance/* lands at well-known paths
     - mkdir -p live-build/config/includes.chroot/etc/systemd/system
     - cp appliance/systemd/*.service live-build/config/includes.chroot/etc/systemd/system/
