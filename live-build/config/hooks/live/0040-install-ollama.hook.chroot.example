@@ -1,23 +1,9 @@
 #!/bin/sh
-# DISABLED BY DEFAULT — rename to .hook.chroot (drop .example) to enable.
+# Install Ollama. Unpinned latest — same pattern as the dev server
+# (tooling-playbooks/dev-services-setup.yml ollama task).
 #
-# Downloads the Ollama runtime binary from github releases. External-binary
-# install during chroot build is deliberate; the maintainer must pin a
-# version + verify a checksum before the hook becomes live.
-#
-# Before enabling:
-#   1. Pick a pinned Ollama version (https://github.com/ollama/ollama/releases)
-#   2. Get the sha256 from the release artifacts
-#   3. Fill OLLAMA_VERSION + OLLAMA_SHA256 below
-#   4. Rename this file to 0040-install-ollama.hook.chroot
+# Official install.sh writes the systemd unit; we overwrite it in
+# hook 0080 with our own unit (binds to 127.0.0.1, OLLAMA_MODELS preset).
 set -e
 
-echo "ERROR: 0040-install-ollama is a template — pin OLLAMA_VERSION and rename to .hook.chroot"
-exit 1
-
-# TEMPLATE:
-# OLLAMA_VERSION="vX.Y.Z"
-# OLLAMA_SHA256="<paste-from-release-notes>"
-# curl -fsSL "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64" -o /usr/local/bin/ollama
-# echo "${OLLAMA_SHA256}  /usr/local/bin/ollama" | sha256sum -c -
-# chmod +x /usr/local/bin/ollama
+curl -fsSL https://ollama.ai/install.sh | sh

@@ -38,8 +38,6 @@ mirror:
 # s3://arcnode-public/iso/customers/<ORDER_ID>/arcnode-ems-<ORDER_ID>.iso.
 bake:
   stage: bake
-  tags:
-    - iso-builder
   # Reason: only fire when the platform-api trigger sets ORDER_ID. Regular
   # main-branch pushes (code changes) do NOT bake — that'd burn 30 min + 5 GB.
   rules:
