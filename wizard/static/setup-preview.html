@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=1480"/>
+<title>ARCNODE — First-boot Setup Wizard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600&family=Space+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background:
+      linear-gradient(180deg, #d4d4d2 0%, #c4c4c2 50%, #d8d0bf 50%, #c8bea8 100%);
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #fff;
+  }
+  .stage {
+    min-height: 100vh;
+    padding: 32px 24px 64px;
+    box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 36px;
+  }
+  .row { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .row-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+  }
+  .row-label.sov  { color: #3a3a38; }
+  .row-label.solr { color: #5a5248; }
+  .row-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    margin-top: -8px;
+  }
+  .row-meta.sov  { color: #6b6b68; }
+  .row-meta.solr { color: #8a8278; }
+
+  .frame-shell {
+    width: 1280px; height: 920px;
+    border-radius: 12px; overflow: hidden;
+    box-shadow:
+      0 30px 80px rgba(0,0,0,0.45),
+      0 6px 18px rgba(0,0,0,0.3),
+      inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .frame-shell.solr {
+    box-shadow:
+      0 30px 80px rgba(40,30,18,0.18),
+      0 6px 18px rgba(40,30,18,0.10),
+      inset 0 0 0 1px rgba(255,255,255,0.5);
+  }
+  @keyframes wizSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="tokens.jsx"></script>
+<script type="text/babel" src="setup-wizard.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "step": "identity",
+    "applyState": "idle"
+  }/*EDITMODE-END*/;
+
+  function WizardFrame({ theme, label, sub, initialStep, initialApply }) {
+    const t = theme;
+    const themeName = t.name === 'sovereign' ? 'sov' : 'solr';
+
+    return (
+      <div className="row" data-screen-label={`Setup Wizard · ${t.name === 'sovereign' ? 'Sovereign' : 'Solarpunk'}`}>
+        <div className={`row-label ${themeName}`}>{label}</div>
+        <div className={`frame-shell ${themeName}`} style={{ background: t.bg }}>
+          <SetupWizardBody t={t} initialStep={initialStep} initialApply={initialApply}/>
+        </div>
+        <div className={`row-meta ${themeName}`}>{sub}</div>
+      </div>
+    );
+  }
+
+  function App() {
+    const SOVEREIGN_BRAND = {
+      ...SOVEREIGN,
+      accent:       '#f5a623',
+      accentDim:    '#b87a1a',
+      accentFaint:  '#1a1200',
+    };
+    const [tweaks, setTweak] = (typeof useTweaks === 'function')
+      ? useTweaks(TWEAK_DEFAULTS)
+      : [TWEAK_DEFAULTS, () => {}];
+
+    return (
+      <div className="stage">
+        <WizardFrame theme={SOVEREIGN_BRAND}
+          label="Sovereign · Dark"
+          sub="1280 × 920 · operator laptop on the LAN"
+          initialStep={tweaks.step}
+          initialApply={tweaks.applyState}/>
+        <WizardFrame theme={SOLARPUNK}
+          label="Solarpunk · Light"
+          sub="1280 × 920 · same wizard, light theme"
+          initialStep={tweaks.step}
+          initialApply={tweaks.applyState}/>
+        {typeof TweaksPanel === 'function' && (
+          <TweaksPanel defaults={TWEAK_DEFAULTS} title="Tweaks">
+            {(tw, set) => (
+              <>
+                <TweakSection title="Jump to step">
+                  <TweakSelect label="Step"
+                    value={tw.step}
+                    onChange={(v) => set('step', v)}
+                    options={[
+                      { value: 'identity', label: '1 · Install identity' },
+                      { value: 'apikeys',  label: '2 · API keys' },
+                      { value: 'tls',      label: '3 · TLS for HMI' },
+                      { value: 'admin',    label: '4 · Admin login' },
+                      { value: 'review',   label: '5 · Review & apply' },
+                    ]}/>
+                </TweakSection>
+                <TweakSection title="Apply (step 5)">
+                  <TweakRadio label="State"
+                    value={tw.applyState}
+                    onChange={(v) => set('applyState', v)}
+                    options={[
+                      { value: 'idle',     label: 'Idle' },
+                      { value: 'applying', label: 'Applying' },
+                      { value: 'done',     label: 'Done' },
+                    ]}/>
+                </TweakSection>
+              </>
+            )}
+          </TweaksPanel>
+        )}
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
