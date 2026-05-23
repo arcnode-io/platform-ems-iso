@@ -25,5 +25,6 @@ echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pu
 apt-get update
 apt-get install -y --no-install-recommends \
   timescaledb-2-postgresql-15 \
+  timescaledb-tools \
   postgresql-15-pgvector \
   neo4j
