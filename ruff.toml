@@ -50,8 +50,16 @@ ignore = [
     
     # Type annotations: Prefer Optional over X | None
     "UP045",  # Use X | None for type annotations
+
+    # subprocess: appliance PATH is fixed/trusted — partial paths to openssl/docker fine
+    "S607",
 ]
 
 [lint.pylint]
 max-args = 5
 max-statements = 30
+
+[lint.per-file-ignores]
+# Tests: function name + AAA comments already document intent; D103 is noise.
+"src/test_*.py" = ["D103"]
+"tests/**/*.py" = ["D103"]

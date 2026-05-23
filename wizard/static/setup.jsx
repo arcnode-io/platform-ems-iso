@@ -5,14 +5,18 @@
 const { useState: useStateW, useEffect: useEffectW } = React;
 
 // ─── Baked install identity (from /etc/arcnode/install.json) ─────────
-const INSTALL_IDENTITY = {
-  customer:    'Brookside Energy LLC',
-  site:        'Brookside DC-1',
-  market:      'ERCOT · Houston Hub',
-  isoVersion:  'arcnode-ems-1.0.0',
-  isoBuiltAt:  '29 Apr 2026',
-  orderId:     'CFG-2026-0142',
-  rev:         'Rev 3',
+// WIRING: bootstrap script fetches GET /setup/identity before mount and
+// stashes the result on window.INSTALL_IDENTITY. Defaults below only
+// show if the fetch fails (network/file error) — operator sees they
+// booted into a broken state and contacts support.
+const INSTALL_IDENTITY = (typeof window !== 'undefined' && window.INSTALL_IDENTITY) || {
+  customer:    '— unknown —',
+  site:        '— unknown —',
+  market:      '— unknown —',
+  isoVersion:  '— unknown —',
+  isoBuiltAt:  '— unknown —',
+  orderId:     '— unknown —',
+  rev:         '— unknown —',
 };
 
 // ─── API keys schema (extend here as new integrations land) ──────────
@@ -937,9 +941,45 @@ function SetupWizardBody({ t, initialStep, initialApply }) {
     const idx = STEPS.findIndex(s => s.id === current);
     if (idx > 0) setCurrent(STEPS[idx - 1].id);
   };
-  const onApply = () => {
+  // WIRING: real POST /setup/apply instead of the designer's setTimeout
+  // mock. Backend (FastAPI) writes secrets + TLS + admin, kicks compose,
+  // marks setup complete. On 200 → 'done' (UI redirects to /). On error
+  // → snap back to 'idle' and surface the message inline (TODO: error UI).
+  const onApply = async () => {
     setApplyState('applying');
-    setTimeout(() => setApplyState('done'), 4800);
+    const body = {
+      apiKeys: Object.entries(values.apiKeys).map(([id, v]) => ({
+        id,
+        value: v.skipped ? null : v.key,
+        skipped: !!v.skipped,
+      })),
+      tls: {
+        mode: values.tls.mode === 'selfsigned' ? 'self_signed' : 'upload',
+        certPem: values.tls.cert,
+        keyPem:  values.tls.key,
+      },
+      admin: {
+        username: values.admin.username,
+        password: values.admin.password,
+      },
+    };
+    try {
+      const resp = await fetch('/setup/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error(`apply failed: ${resp.status}`);
+      const out = await resp.json();
+      setApplyState('done');
+      // 1s pause so the progress log gets the visual completion beat,
+      // then redirect to the HMI (or wherever the backend sends us).
+      setTimeout(() => { window.location.href = out.redirect || '/'; }, 1000);
+    } catch (e) {
+      console.error('apply error', e);
+      setApplyState('idle');
+      alert(`Setup failed: ${e.message}`);  // TODO: inline error UI
+    }
   };
   const onJump = (id) => setCurrent(id);
 

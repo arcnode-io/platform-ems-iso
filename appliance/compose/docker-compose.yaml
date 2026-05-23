@@ -1,0 +1,130 @@
+# ISO variant — EMS stack on a customer-installed Debian appliance.
+#
+# Persistence + LLM are systemd-managed daemons on the host (NOT in
+# this compose):
+#   - postgres-timeseries  (timeseries slice)
+#   - postgres-document    (document slice)
+#   - postgres-vector      (vector slice, pgvector ext)
+#   - neo4j                (graph)
+#   - minio                (object storage; S3 replacement)
+#   - ollama               (local LLM; Bedrock replacement)
+#
+# App services in this compose talk to the daemons via localhost. Wizard
+# writes /etc/arcnode/secrets.env at first-boot with the per-daemon
+# connection URLs (passwords generated at daemon-install time, baked
+# into systemd unit env at install).
+#
+# All images preloaded at build (docker save → live-build hook); no
+# registry pull at runtime. Airgap-clean.
+
+x-env-files: &env-files
+  env_file:
+    - /etc/arcnode/config.env       # ENV, hostnames, non-secret
+    - /etc/arcnode/secrets.env      # DOCUMENT_URL, VECTOR_URL, GRAPH_URL,
+                                    # MINIO_*, OPENWEATHERMAP_API_KEY, etc.
+
+services:
+  hivemq:
+    image: hivemq/hivemq-ce:latest
+    restart: unless-stopped
+    <<: *env-files
+
+  device-api:
+    image: public.ecr.aws/y1d2j6a8/ems-device-api:latest
+    restart: unless-stopped
+    <<: *env-files
+    environment:
+      BOOT_DTM_PATH: /app/dtm.json
+      ENV: beta
+    volumes:
+      - /etc/arcnode/dtm.json:/app/dtm.json:ro
+
+  # MQTT → postgres-timeseries bridge. Same shape as cloud; the env's
+  # TIMESERIES_URL points at localhost (postgresql://...@127.0.0.1:5432/...).
+  telemetry-writer:
+    image: python:3.13-alpine
+    restart: unless-stopped
+    network_mode: host                     # so 127.0.0.1 reaches the systemd daemons
+    <<: *env-files
+    volumes:
+      - /etc/arcnode/init-scripts:/scripts:ro
+    command:
+      - sh
+      - -c
+      - "pip install --quiet paho-mqtt psycopg2-binary && python /scripts/telemetry_writer.py"
+    depends_on:
+      hivemq:
+        condition: service_started
+
+  industrial-gateway:
+    image: public.ecr.aws/y1d2j6a8/ems-industrial-gateway:latest
+    restart: unless-stopped
+    <<: *env-files
+    environment:
+      ENV: beta
+      CFG_CUSTOMER_PATH: /app/cfg.customer.yml
+    volumes:
+      - /etc/arcnode/gateway-cfg.customer.yml:/app/cfg.customer.yml:ro
+    depends_on:
+      hivemq:
+        condition: service_started
+
+  hmi:
+    image: public.ecr.aws/y1d2j6a8/ems-hmi:latest
+    restart: unless-stopped
+    <<: *env-files
+    ports:
+      - "80:80"
+    depends_on:
+      device-api:
+        condition: service_started
+
+  analyst-server:
+    image: public.ecr.aws/y1d2j6a8/ems-analyst-server:latest
+    restart: unless-stopped
+    network_mode: host                     # 127.0.0.1 reaches postgres + neo4j + ollama
+    <<: *env-files
+    environment:
+      ENV: beta
+      CFG_CUSTOMER_PATH: /app/cfg.customer.yml
+    volumes:
+      - /etc/arcnode/analyst-cfg.customer.yml:/app/cfg.customer.yml:ro
+
+  analyst-model:
+    image: public.ecr.aws/y1d2j6a8/ems-analyst-model:latest
+    restart: unless-stopped
+    <<: *env-files
+
+  # Observability + ML tracking — matches cloud post-backfill. Internal
+  # ports; HMI proxies (later) or operator port-forwards for raw access.
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - /etc/arcnode/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /var/lib/arcnode/prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    <<: *env-files
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-arcnode}
+    volumes:
+      - /var/lib/arcnode/grafana-data:/var/lib/grafana
+      - /etc/arcnode/observability/grafana-provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    restart: unless-stopped
+    volumes:
+      - /var/lib/arcnode/mlflow-data:/mlflow/mlruns
+      - /var/lib/arcnode/mlflow-artifacts:/mlflow/artifacts
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlruns/mlflow.db
+      --default-artifact-root file:///mlflow/artifacts
+      --host 0.0.0.0 --port 5000

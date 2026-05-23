@@ -1,34 +1,68 @@
-def add(a: int, b: int) -> int:
-    """Add two integers together.
+"""FastAPI app for the first-boot wizard.
 
-    Args:
-        a: First integer to add
-        b: Second integer to add
+Three routes:
+  GET  /                — renders setup.html (or 410 if already complete)
+  GET  /setup/identity  — returns the baked InstallIdentity as JSON
+  POST /setup/apply     — applies the operator's submitted config
+"""
 
-    Returns:
-        Sum of the two integers
+from __future__ import annotations
 
-    Example:
-        >>> add(2, 3)
-        5
+from collections.abc import Callable
+from pathlib import Path
 
-    """
-    return a + b
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from src import apply, identity
+from src.models import ApplyRequest, ApplyResult
+
+WIZARD_DIR = Path(__file__).resolve().parent.parent / "wizard"
+TEMPLATES_DIR = WIZARD_DIR / "templates"
+STATIC_DIR = WIZARD_DIR / "static"
 
 
-def app(a: int, b: int) -> int:
-    """Execute the main application function that adds two integers.
+def create_app(
+    *,
+    identity_path: Path = identity.DEFAULT_IDENTITY_PATH,
+    setup_marker: Path = apply.SETUP_COMPLETE_MARKER,
+    apply_fn: Callable[[ApplyRequest], None] = apply.apply_all,
+) -> FastAPI:
+    """Wire the wizard routes. DI'd so tests can swap paths + the apply pipeline."""
+    app = FastAPI(title="ARCNODE Setup Wizard")
+    templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    Args:
-        a: First integer to add
-        b: Second integer to add
+    def _guard_complete() -> None:
+        # Reason: once the marker exists the wizard MUST refuse — re-running
+        # setup would clobber the live secrets file and bounce all services.
+        if apply.is_setup_complete(setup_marker):
+            raise HTTPException(status_code=410, detail="setup already complete")
 
-    Returns:
-        Sum of the two integers via the add function
+    @app.get("/", response_class=HTMLResponse)
+    def root(request: Request) -> HTMLResponse:
+        _guard_complete()
+        ident = identity.read_identity(identity_path)
+        return templates.TemplateResponse(
+            request,
+            "setup.html",
+            {"identity": ident.model_dump(by_alias=True)},
+        )
 
-    Example:
-        >>> app(5, 7)
-        12
+    @app.get("/setup/identity")
+    def get_identity() -> JSONResponse:
+        _guard_complete()
+        ident = identity.read_identity(identity_path)
+        return JSONResponse(ident.model_dump(by_alias=True))
 
-    """
-    return add(a, b)
+    @app.post("/setup/apply")
+    def post_apply(req: ApplyRequest) -> ApplyResult:
+        _guard_complete()
+        apply_fn(req)
+        # Redirect to / so the operator hits the 410 + the systemd unit can
+        # tear the wizard down. nginx on the HMI takes over from there.
+        return ApplyResult(ok=True, redirect="/")
+
+    return app
