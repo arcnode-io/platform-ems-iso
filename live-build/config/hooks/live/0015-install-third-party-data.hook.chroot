@@ -1,0 +1,29 @@
+#!/bin/sh
+# Install third-party data daemons (timescale, pgvector, neo4j) from their
+# own apt repos. Runs AFTER the package list installs ca-certificates, so
+# the HTTPS InRelease fetches actually succeed.
+set -e
+
+# --- timescale ---
+curl -fsSL https://packagecloud.io/timescale/timescaledb/gpgkey \
+  | gpg --dearmor -o /usr/share/keyrings/timescale.gpg
+echo "deb [signed-by=/usr/share/keyrings/timescale.gpg] https://packagecloud.io/timescale/timescaledb/debian/ bookworm main" \
+  > /etc/apt/sources.list.d/timescale.list
+
+# --- neo4j ---
+curl -fsSL https://debian.neo4j.com/neotechnology.gpg.key \
+  | gpg --dearmor -o /usr/share/keyrings/neo4j.gpg
+echo "deb [signed-by=/usr/share/keyrings/neo4j.gpg] https://debian.neo4j.com stable 5" \
+  > /etc/apt/sources.list.d/neo4j.list
+
+# --- pgvector (Postgres official "pgdg" apt repo) ---
+curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+  > /etc/apt/sources.list.d/pgdg.list
+
+apt-get update
+apt-get install -y --no-install-recommends \
+  timescaledb-2-postgresql-15 \
+  postgresql-15-pgvector \
+  neo4j

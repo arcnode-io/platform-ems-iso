@@ -1,5 +1,10 @@
 # Packages installed into the live chroot at build time.
 # Order grouped by role; comments cite *why* each one belongs in the image.
+#
+# Third-party-repo packages (timescale, neo4j, pgvector) are installed by
+# hook 0015 — debootstrap's first apt-get update can't reach HTTPS repos
+# without ca-certificates, which is itself in this list. Hook order works
+# out: package list runs first (ca-certs lands), then numbered hooks.
 
 # --- Base + boot ----------------------------------------------------
 linux-image-amd64
@@ -14,17 +19,12 @@ gnupg
 sudo
 apt-transport-https
 
-# --- Data daemons ---------------------------------------------------
-# Bookworm ships postgresql-15 as default; timescale + pgvector for 15
-# exist in their respective third-party repos. neo4j from neo4j's repo.
+# --- Data daemons (debian-native only here) ------------------------
 postgresql-15
-postgresql-15-pgvector
-timescaledb-2-postgresql-15
-neo4j
 
 # --- Container runtime ----------------------------------------------
 # docker.io from debian (smaller than docker-ce, no third-party repo).
-# Compose v2 is installed via hook 0045 (no debian package in bookworm).
+# Compose v2 plugin installed via hook 0045.
 docker.io
 
 # --- App-stack runtime helpers --------------------------------------

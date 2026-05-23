@@ -1,2 +1,0 @@
-# [trusted=yes] — see timescale.list.chroot for rationale.
-deb [trusted=yes] https://debian.neo4j.com stable 5
