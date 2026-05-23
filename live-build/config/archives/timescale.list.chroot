@@ -1,1 +1,5 @@
-deb https://packagecloud.io/timescale/timescaledb/debian/ bookworm main
+# [trusted=yes] skips GPG + cert validation at build time. Runner is
+# trusted; the resulting ISO doesn't ship this apt repo, so no runtime
+# exposure. Without this the chroot fails TLS validation on packagecloud.io
+# because ca-certificates isn't in /etc/ssl yet when apt first reaches out.
+deb [trusted=yes] https://packagecloud.io/timescale/timescaledb/debian/ bookworm main

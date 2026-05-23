@@ -14,19 +14,18 @@ gnupg
 sudo
 apt-transport-https
 
-# --- Data daemons (debian-native) -----------------------------------
-postgresql-16
-postgresql-16-pgvector
-# Reason: timescaledb deb comes from Timescale's own apt repo — wired in
-# config/archives/timescale.list.chroot, listed here so apt resolves it.
-timescaledb-2-postgresql-16
+# --- Data daemons ---------------------------------------------------
+# Bookworm ships postgresql-15 as default; timescale + pgvector for 15
+# exist in their respective third-party repos. neo4j from neo4j's repo.
+postgresql-15
+postgresql-15-pgvector
+timescaledb-2-postgresql-15
 neo4j
 
 # --- Container runtime ----------------------------------------------
-# Reason: docker.io from debian, NOT docker-ce — smaller, no third-party
-# repo, sufficient for compose v2 (which is a plugin we install separately).
+# docker.io from debian (smaller than docker-ce, no third-party repo).
+# Compose v2 is installed via hook 0045 (no debian package in bookworm).
 docker.io
-docker-compose-plugin
 
 # --- App-stack runtime helpers --------------------------------------
 python3

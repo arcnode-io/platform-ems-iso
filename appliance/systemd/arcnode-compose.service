@@ -5,7 +5,7 @@ Description=ARCNODE app stack (docker compose)
 # daemons are After-only because compose can retry-connect.
 Requires=docker.service
 After=docker.service
-After=postgresql@16-timeseries.service postgresql@16-document.service postgresql@16-vector.service
+After=postgresql@15-timeseries.service postgresql@15-document.service postgresql@15-vector.service
 After=neo4j.service minio.service ollama.service
 # Only start once setup wizard has completed — before that there's no
 # secrets.env so compose would fail half its containers anyway.

@@ -13,9 +13,9 @@ Units we ship that aren't already in standard Debian packages.
 
 Debian's own packages provide these:
 
-- **PostgreSQL** — `apt install postgresql-16 timescaledb-2-postgresql-16 postgresql-16-pgvector`.
-  Three clusters created at first boot via `pg_createcluster 16 timeseries|document|vector`.
-  Debian writes `postgresql@16-<cluster>.service` template units automatically.
+- **PostgreSQL** — `apt install postgresql-15 timescaledb-2-postgresql-15 postgresql-15-pgvector`.
+  Three clusters created at first boot via `pg_createcluster 15 timeseries|document|vector`.
+  Debian writes `postgresql@15-<cluster>.service` template units automatically.
 - **Neo4j** — `apt install neo4j` writes `neo4j.service`.
 - **Docker** — `apt install docker.io` writes `docker.service`.
 
@@ -24,9 +24,9 @@ Debian's own packages provide these:
 ```
 network-online
   ├─ arcnode-wizard           (if !setup-complete)
-  ├─ postgresql@16-timeseries
-  ├─ postgresql@16-document
-  ├─ postgresql@16-vector
+  ├─ postgresql@15-timeseries
+  ├─ postgresql@15-document
+  ├─ postgresql@15-vector
   ├─ neo4j
   ├─ minio
   ├─ ollama

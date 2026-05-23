@@ -1,6 +1,6 @@
 #!/bin/sh
 # Three postgres clusters, one per data slice. Debian's pg_createcluster
-# writes the postgresql@16-<name>.service template instance automatically
+# writes the postgresql@15-<name>.service template instance automatically
 # so we don't ship those units ourselves.
 #
 # We DROP the default 'main' cluster — we don't want it eating a port +
@@ -8,17 +8,17 @@
 set -e
 
 # Reason: pg_dropcluster fails if cluster doesn't exist; check first
-if pg_lsclusters -h 2>/dev/null | grep -q "^16 main "; then
-  pg_dropcluster --stop 16 main
+if pg_lsclusters -h 2>/dev/null | grep -q "^15 main "; then
+  pg_dropcluster --stop 15 main
 fi
 
 for slice in timeseries document vector; do
-  pg_createcluster 16 "$slice" \
-    --datadir "/var/lib/postgresql/16/$slice" \
+  pg_createcluster 15 "$slice" \
+    --datadir "/var/lib/postgresql/15/$slice" \
     --start-conf manual
 done
 
 # timescaledb-tune ONLY on the timeseries cluster. Other clusters are
 # stock postgres; document gets jsonb workloads, vector gets pgvector.
 timescaledb-tune --quiet --yes \
-  --conf-path /etc/postgresql/16/timeseries/postgresql.conf
+  --conf-path /etc/postgresql/15/timeseries/postgresql.conf
