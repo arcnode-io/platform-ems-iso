@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from src import apply, identity
+from src import apply, hardware, identity
 from src.models import ApplyRequest, ApplyResult
 
 WIZARD_DIR = Path(__file__).resolve().parent.parent / "wizard"
@@ -45,10 +45,14 @@ def create_app(
     def root(request: Request) -> HTMLResponse:
         _guard_complete()
         ident = identity.read_identity(identity_path)
+        hw = hardware.probe()
         return templates.TemplateResponse(
             request,
             "setup.html",
-            {"identity": ident.model_dump(by_alias=True)},
+            {
+                "identity": ident.model_dump(by_alias=True),
+                "hardware": hw.model_dump(by_alias=True),
+            },
         )
 
     @app.get("/setup/identity")
@@ -56,6 +60,13 @@ def create_app(
         _guard_complete()
         ident = identity.read_identity(identity_path)
         return JSONResponse(ident.model_dump(by_alias=True))
+
+    @app.get("/setup/hardware")
+    def get_hardware() -> JSONResponse:
+        # Reason: re-probed per call so the JSX's "Re-check" button gets
+        # fresh data after the operator yanks a stick of RAM or whatever.
+        _guard_complete()
+        return JSONResponse(hardware.probe().model_dump(by_alias=True))
 
     @app.post("/setup/apply")
     def post_apply(req: ApplyRequest) -> ApplyResult:

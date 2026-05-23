@@ -17,6 +17,7 @@
      time — no fetch race with babel-standalone's auto-compile. -->
 <script>
   window.INSTALL_IDENTITY = {{ identity | tojson }};
+  window.HARDWARE_DATA = {{ hardware | tojson }};
 </script>
 
 <!-- Same React/babel CDN trio the designer used in setup-preview.html, same SRI hashes. -->
@@ -28,6 +29,9 @@
 <div id="root"></div>
 
 <script type="text/babel" src="/static/tokens.jsx"></script>
+<!-- hardware-check.jsx exposes window.HardwareCheckBody — must load BEFORE
+     setup.jsx which references it from the SetupWizardBody render tree. -->
+<script type="text/babel" src="/static/hardware-check.jsx"></script>
 <script type="text/babel" src="/static/setup.jsx"></script>
 
 <script type="text/babel">

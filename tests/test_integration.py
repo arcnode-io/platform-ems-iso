@@ -39,9 +39,13 @@ def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
     home = client.get("/")
     assert home.status_code == 200
     assert "window.INSTALL_IDENTITY" in home.text
+    assert "window.HARDWARE_DATA" in home.text
 
     ident = client.get("/setup/identity").json()
     assert ident["customer"] == "Acme"
+
+    hw = client.get("/setup/hardware").json()
+    assert "overallStatus" in hw
 
     apply_resp = client.post(
         "/setup/apply",

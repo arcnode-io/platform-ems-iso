@@ -4,7 +4,6 @@
 
 const { useState: useStateW, useEffect: useEffectW } = React;
 
-// ─── Baked install identity (from /etc/arcnode/install.json) ─────────
 // WIRING: bootstrap script fetches GET /setup/identity before mount and
 // stashes the result on window.INSTALL_IDENTITY. Defaults below only
 // show if the fetch fails (network/file error) — operator sees they
@@ -101,6 +100,8 @@ function DotW({ color, size = 8 }) {
 // ─── Step rail (left column) ─────────────────────────────────────────
 function StepRailW({ t, current, completed, onJump }) {
   const isSov = t.name === 'sovereign';
+  const preflightActive = current === 'preflight';
+  const preflightDone = completed.has('preflight');
   return (
     <div style={{
       width: 260, flexShrink: 0,
@@ -114,6 +115,46 @@ function StepRailW({ t, current, completed, onJump }) {
         letterSpacing: 0.22, color: t.textFaint, textTransform: 'uppercase',
         marginBottom: SPACE[3],
       }}>Setup · 5 steps</div>
+
+      {/* preflight chip — above the numbered list, not part of the count */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: SPACE[3],
+        padding: `${SPACE[2]}px ${SPACE[3]}px`,
+        marginBottom: SPACE[2],
+        borderRadius: RADIUS[2],
+        background: preflightActive ? t.accent + '12' : 'transparent',
+        borderLeft: `2px solid ${preflightActive ? t.accent : 'transparent'}`,
+        cursor: preflightDone ? 'pointer' : 'default',
+        opacity: (preflightActive || preflightDone) ? 1 : 0.55,
+      }}
+      onClick={() => preflightDone && onJump && onJump('preflight')}>
+        <span style={{
+          width: 22, height: 22, borderRadius: 6,
+          border: `1px solid ${preflightDone ? t.statusOk : preflightActive ? t.accent : t.borderSoft}`,
+          background: preflightDone ? t.statusOk : preflightActive ? t.accent : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          {preflightDone
+            ? <CheckW color="#fff" size={11}/>
+            : <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                   stroke={preflightActive ? '#fff' : t.textSoft} strokeWidth="2.2"
+                   strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2 L4 6 V12 C4 17 8 20 12 22 C16 20 20 17 20 12 V6 Z"/>
+              </svg>}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontFamily: t.fontBody, fontSize: 13, fontWeight: 600,
+            color: preflightActive ? t.text : t.textMid,
+            lineHeight: 1.2,
+          }}>Hardware preflight</div>
+          <div style={{
+            fontFamily: t.fontLabel, fontSize: 10, color: t.textSoft,
+            marginTop: 2, letterSpacing: 0.05,
+          }}>Before setup begins</div>
+        </div>
+      </div>
 
       {STEPS.map(s => {
         const isActive = current === s.id;
@@ -789,6 +830,7 @@ function StepShellW({ t, title, blurb, children }) {
 function HeaderW({ t, current }) {
   const isSov = t.name === 'sovereign';
   const idx = STEPS.findIndex(s => s.id === current);
+  const isPreflight = current === 'preflight';
   return (
     <div style={{
       padding: `${SPACE[4]}px ${SPACE[6]}px`,
@@ -822,18 +864,34 @@ function HeaderW({ t, current }) {
       <div style={{
         fontFamily: t.fontLabel, fontSize: 11, fontWeight: 700, letterSpacing: 0.2,
         color: t.textSoft, textTransform: 'uppercase',
-      }}>Step <span style={{ color: t.text }}>{idx + 1}</span> of {STEPS.length}</div>
+      }}>
+        {isPreflight
+          ? 'Preflight'
+          : <>Step <span style={{ color: t.text }}>{idx + 1}</span> of {STEPS.length}</>}
+      </div>
     </div>
   );
 }
 
 // ─── Footer (Back / Continue) ───────────────────────────────────────
-function FooterW({ t, current, applyState, onBack, onNext, onApply }) {
+function FooterW({ t, current, applyState, hwScenario, onBack, onNext, onApply }) {
   const idx = STEPS.findIndex(s => s.id === current);
   const isLast = current === 'review';
+  const isPreflight = current === 'preflight';
   const isApplying = applyState === 'applying';
   const isDone = applyState === 'done';
-  const nextLabel = current === 'identity' ? 'Begin setup' : 'Continue';
+
+  const hwData = (typeof HW_SCENARIOS !== 'undefined') ? HW_SCENARIOS[hwScenario] : null;
+  const hwStatus = hwData?.overallStatus || 'ok';
+  const hwBlocked = isPreflight && hwStatus === 'fail';
+  const hwWarn    = isPreflight && hwStatus === 'warn';
+
+  let nextLabel;
+  if (isPreflight)              nextLabel = hwWarn ? 'Continue anyway' : 'Begin setup';
+  else if (current === 'identity') nextLabel = 'Continue';
+  else                          nextLabel = 'Continue';
+
+  const backDisabled = isPreflight || isApplying || isDone;
 
   return (
     <div style={{
@@ -842,20 +900,20 @@ function FooterW({ t, current, applyState, onBack, onNext, onApply }) {
       display: 'flex', alignItems: 'center', gap: SPACE[3],
       background: t.bg,
     }}>
-      <button onClick={onBack} disabled={idx === 0 || isApplying || isDone}
+      <button onClick={onBack} disabled={backDisabled}
         style={{
           appearance: 'none',
-          cursor: (idx === 0 || isApplying || isDone) ? 'not-allowed' : 'pointer',
+          cursor: backDisabled ? 'not-allowed' : 'pointer',
           height: 40, padding: '0 16px',
           background: 'transparent',
           border: `1px solid ${t.border}`,
           borderRadius: RADIUS[2],
           fontFamily: t.fontLabel, fontSize: 11, fontWeight: 700, letterSpacing: 0.18,
-          color: (idx === 0 || isApplying || isDone) ? t.textFaint : t.text,
+          color: backDisabled ? t.textFaint : t.text,
           textTransform: 'uppercase',
           display: 'inline-flex', alignItems: 'center', gap: 6,
         }}>
-        <ChevronW color={(idx === 0 || isApplying || isDone) ? t.textFaint : t.text} size={12} dir="left"/>
+        <ChevronW color={backDisabled ? t.textFaint : t.text} size={12} dir="left"/>
         Back
       </button>
       <span style={{ flex: 1 }}/>
@@ -864,9 +922,14 @@ function FooterW({ t, current, applyState, onBack, onNext, onApply }) {
       <span style={{
         fontFamily: t.fontLabel, fontSize: 10, color: t.textSoft, letterSpacing: 0.1,
       }}>
-        {isApplying ? 'Do not refresh the page.'
-         : isDone   ? 'Redirecting to HMI…'
-         : isLast   ? 'Applies all changes in a single transaction.'
+        {isApplying  ? 'Do not refresh the page.'
+         : isDone    ? 'Redirecting to HMI…'
+         : isLast    ? 'Applies all changes in a single transaction.'
+         : isPreflight && hwBlocked
+                     ? 'Move the ISO to hardware that meets the minimums.'
+         : isPreflight && hwWarn
+                     ? 'Below recommended — the system will run but may struggle under load.'
+         : isPreflight ? 'Next · Install identity'
          : `Next · ${STEPS[idx + 1]?.title}`}
       </span>
 
@@ -878,13 +941,30 @@ function FooterW({ t, current, applyState, onBack, onNext, onApply }) {
           {isApplying ? 'Applying' : isDone ? 'Complete' : 'Apply & start ARCNODE'}
         </button>
       ) : (
-        <button onClick={onNext} style={primaryBtnStyle(t, false)}>
+        <button onClick={hwBlocked ? undefined : onNext}
+          disabled={hwBlocked}
+          style={hwWarn
+            ? secondaryBtnStyle(t, false)
+            : primaryBtnStyle(t, hwBlocked)}>
           {nextLabel}
-          <ChevronW color="#fff" size={12}/>
+          <ChevronW color={hwWarn ? t.text : '#fff'} size={12}/>
         </button>
       )}
     </div>
   );
+}
+function secondaryBtnStyle(t, disabled) {
+  return {
+    appearance: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+    height: 40, padding: '0 18px',
+    background: 'transparent',
+    border: `1px solid ${t.statusWarn}`,
+    color: t.text,
+    borderRadius: RADIUS[2],
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    fontFamily: t.fontLabel, fontSize: 11, fontWeight: 700, letterSpacing: 0.18,
+    textTransform: 'uppercase',
+  };
 }
 function primaryBtnStyle(t, disabled) {
   return {
@@ -902,10 +982,12 @@ function primaryBtnStyle(t, disabled) {
 }
 
 // ─── Main wizard body ───────────────────────────────────────────────
-function SetupWizardBody({ t, initialStep, initialApply }) {
-  const [current, setCurrent] = useStateW(initialStep || 'identity');
+function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
+  const [current, setCurrent] = useStateW(initialStep || 'preflight');
   const [completed, setCompleted] = useStateW(new Set());
   const [applyState, setApplyState] = useStateW(initialApply || 'idle');
+  const [hwScenario, setHwScenario] = useStateW(initialHwScenario || 'ok');
+  const [hwKey, setHwKey] = useStateW(0); // bumps to re-trigger the spinner
 
   // form values
   const [values, setValues] = useStateW({
@@ -928,23 +1010,37 @@ function SetupWizardBody({ t, initialStep, initialApply }) {
       if (initialApply !== 'idle') setCurrent('review');
     }
   }, [initialApply]);
+  useEffectW(() => {
+    if (initialHwScenario && initialHwScenario !== hwScenario) {
+      setHwScenario(initialHwScenario);
+      setHwKey(k => k + 1);
+    }
+  }, [initialHwScenario]);
 
   const advance = (nextId) => {
     setCompleted(s => new Set([...s, current]));
     setCurrent(nextId);
   };
   const onNext = () => {
+    if (current === 'preflight') {
+      setCompleted(s => new Set([...s, 'preflight']));
+      setCurrent('identity');
+      return;
+    }
     const idx = STEPS.findIndex(s => s.id === current);
     if (idx < STEPS.length - 1) advance(STEPS[idx + 1].id);
   };
   const onBack = () => {
+    if (current === 'identity') {
+      setCurrent('preflight');
+      return;
+    }
     const idx = STEPS.findIndex(s => s.id === current);
     if (idx > 0) setCurrent(STEPS[idx - 1].id);
   };
   // WIRING: real POST /setup/apply instead of the designer's setTimeout
-  // mock. Backend (FastAPI) writes secrets + TLS + admin, kicks compose,
-  // marks setup complete. On 200 → 'done' (UI redirects to /). On error
-  // → snap back to 'idle' and surface the message inline (TODO: error UI).
+  // mock. Backend writes secrets + TLS + admin, kicks compose, marks setup
+  // complete. On 200 → 'done' (UI redirects). On error → snap to 'idle'.
   const onApply = async () => {
     setApplyState('applying');
     const body = {
@@ -972,8 +1068,6 @@ function SetupWizardBody({ t, initialStep, initialApply }) {
       if (!resp.ok) throw new Error(`apply failed: ${resp.status}`);
       const out = await resp.json();
       setApplyState('done');
-      // 1s pause so the progress log gets the visual completion beat,
-      // then redirect to the HMI (or wherever the backend sends us).
       setTimeout(() => { window.location.href = out.redirect || '/'; }, 1000);
     } catch (e) {
       console.error('apply error', e);
@@ -982,6 +1076,7 @@ function SetupWizardBody({ t, initialStep, initialApply }) {
     }
   };
   const onJump = (id) => setCurrent(id);
+  const onRecheck = () => setHwKey(k => k + 1);
 
   const setAPIKey   = (id, v) => setValues(s => ({ ...s, apiKeys: { ...s.apiKeys, [id]: v } }));
   const setTLSMode  = (m)     => setValues(s => ({ ...s, tls: { ...s.tls, mode: m } }));
@@ -1007,6 +1102,7 @@ function SetupWizardBody({ t, initialStep, initialApply }) {
           overflowY: 'auto',
           maxWidth: 820,
         }}>
+          {current === 'preflight' && <HardwareCheckBody key={hwKey} t={t} scenario={hwScenario} onRecheck={onRecheck}/>}
           {current === 'identity' && <Step1Identity t={t}/>}
           {current === 'apikeys'  && <Step2APIKeys  t={t} values={values.apiKeys} onChange={setAPIKey}/>}
           {current === 'tls'      && <Step3TLS      t={t} mode={values.tls.mode} onMode={setTLSMode}
@@ -1022,6 +1118,7 @@ function SetupWizardBody({ t, initialStep, initialApply }) {
         </div>
       </div>
       <FooterW t={t} current={current} applyState={applyState}
+        hwScenario={hwScenario}
         onBack={onBack} onNext={onNext} onApply={onApply}/>
     </div>
   );

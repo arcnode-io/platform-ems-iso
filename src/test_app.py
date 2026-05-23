@@ -48,11 +48,36 @@ def test_root_renders_setup_html_with_identity_inlined(
     # Act
     resp = client.get("/")
 
-    # Assert — identity made it into the inline <script> the JSX reads from
+    # Assert — identity + hardware both made it into the inline <script>
     assert resp.status_code == 200
     assert "window.INSTALL_IDENTITY" in resp.text
+    assert "window.HARDWARE_DATA" in resp.text
     assert "Acme" in resp.text
     assert "isoVersion" in resp.text
+
+
+def test_hardware_endpoint_returns_camelcase_report(
+    baked_identity: Path, marker: Path
+) -> None:
+    # Arrange
+    app = create_app(identity_path=baked_identity, setup_marker=marker)
+    client = TestClient(app)
+
+    # Act
+    resp = client.get("/setup/hardware")
+
+    # Assert — wire shape matches HW_SCENARIOS in hardware-check.jsx
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body.keys()) == {
+        "cores",
+        "ramBytes",
+        "diskBytes",
+        "nicMbps",
+        "overallStatus",
+    }
+    for row in ("cores", "ramBytes", "diskBytes", "nicMbps"):
+        assert set(body[row].keys()) == {"detected", "min", "recommended", "status"}
 
 
 def test_identity_endpoint_returns_camelcase_json(
@@ -115,4 +140,5 @@ def test_routes_return_410_when_setup_already_complete(
     # Act + Assert — every route 410s; no path is reachable post-setup
     assert client.get("/").status_code == 410
     assert client.get("/setup/identity").status_code == 410
+    assert client.get("/setup/hardware").status_code == 410
     assert client.post("/setup/apply", json=valid_apply).status_code == 410
