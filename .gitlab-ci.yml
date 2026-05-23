@@ -52,9 +52,13 @@ publish:
     - sudo lb config
     - sudo lb build
     - cd ..
-    # Upload to deterministic S3 key per commit
     - ISO=$(ls live-build/arcnode-ems-*.iso | head -1)
     - test -n "$ISO" || (echo "no ISO produced"; exit 1)
+    # Boot the ISO in qemu, drive the wizard via HTTP. Fails the job if
+    # the wizard doesn't answer, blocking the S3 upload below — broken
+    # ISOs never publish.
+    - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot.py -vv
+    # Upload to deterministic S3 key per commit
     - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
   only:
     - main

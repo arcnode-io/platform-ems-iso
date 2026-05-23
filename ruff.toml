@@ -62,4 +62,7 @@ max-statements = 30
 [lint.per-file-ignores]
 # Tests: function name + AAA comments already document intent; D103 is noise.
 "src/test_*.py" = ["D103"]
-"tests/**/*.py" = ["D103"]
+# F401/F811: pytest fixtures must be imported AND referenced as fn params;
+# ruff can't see the pytest dispatch so it flags both. S603: subprocess
+# under test control is fine; argv is fixed.
+"tests/**/*.py" = ["D103", "F401", "F811", "S603"]
