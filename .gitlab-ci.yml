@@ -1,6 +1,7 @@
 stages:
   - check
   - mirror
+  - bake
 
 checks:
   stage: check
@@ -28,3 +29,54 @@ mirror:
     - git push --mirror git@github.com:arcnode-io/platform-ems-iso.git
   only:
     - main
+
+# Per-customer ISO bake — triggered by platform-api via the pipeline trigger
+# API with ORDER_ID + OVERLAY_URL as CI variables. Skipped on every other ref.
+#
+# Runs ONLY on the runner tagged 'iso-builder' (the VPS at 173.211.12.43 with
+# live-build + qemu-kvm installed). Build artifact uploads to
+# s3://arcnode-public/iso/customers/<ORDER_ID>/arcnode-ems-<ORDER_ID>.iso.
+bake:
+  stage: bake
+  tags:
+    - iso-builder
+  # Reason: only fire when the platform-api trigger sets ORDER_ID. Regular
+  # main-branch pushes (code changes) do NOT bake — that'd burn 30 min + 5 GB.
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $ORDER_ID'
+  variables:
+    LIVEBUILD_DIR: live-build
+    OVERLAY_DEST: live-build/config/includes.chroot/etc/arcnode
+  before_script:
+    - test -n "$ORDER_ID"     || (echo "ORDER_ID missing"; exit 1)
+    - test -n "$OVERLAY_URL"  || (echo "OVERLAY_URL missing"; exit 1)
+    - test -n "$AWS_ACCESS_KEY_ID" || (echo "AWS_ACCESS_KEY_ID missing (CI var)"; exit 1)
+    - test -n "$AWS_SECRET_ACCESS_KEY" || (echo "AWS_SECRET_ACCESS_KEY missing (CI var)"; exit 1)
+  script:
+    # 1. Download the per-customer overlay from S3 into includes.chroot
+    - mkdir -p $OVERLAY_DEST
+    - aws s3 sync "s3://arcnode-public/orders/$ORDER_ID/iso-overlay/" "$OVERLAY_DEST/" --no-progress
+    - ls -la $OVERLAY_DEST
+    # 2. Copy systemd units + appliance compose bundle into includes.chroot
+    - mkdir -p live-build/config/includes.chroot/etc/systemd/system
+    - cp appliance/systemd/*.service live-build/config/includes.chroot/etc/systemd/system/
+    - mkdir -p live-build/config/includes.chroot/etc/arcnode/compose
+    - cp appliance/compose/*.yaml appliance/compose/*.yml live-build/config/includes.chroot/etc/arcnode/compose/ 2>/dev/null || true
+    # 3. Copy wizard source for hook 0070 to uv-sync against
+    - mkdir -p live-build/config/includes.chroot/opt/arcnode/wizard
+    - cp -r src pyproject.toml uv.lock cfg.yml live-build/config/includes.chroot/opt/arcnode/wizard/
+    # 4. Build the ISO
+    - cd $LIVEBUILD_DIR
+    - sudo lb clean --purge
+    - sudo lb config
+    - sudo lb build 2>&1 | tee build.log
+    - cd ..
+    # 5. Upload finished ISO to S3 under the deterministic key
+    - ISO_FILE=$(ls $LIVEBUILD_DIR/arcnode-ems-*.iso | head -1)
+    - test -n "$ISO_FILE" || (echo "no ISO produced"; exit 1)
+    - aws s3 cp "$ISO_FILE" "s3://arcnode-public/iso/customers/$ORDER_ID/arcnode-ems-$ORDER_ID.iso" --no-progress
+  artifacts:
+    when: always
+    paths:
+      - $LIVEBUILD_DIR/build.log
+    expire_in: 7 days
