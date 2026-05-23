@@ -17,8 +17,8 @@ live-build/
 │   ├── hooks/live/
 │   │   ├── 0010-create-users.hook.chroot          # minio-user, ollama users
 │   │   ├── 0020-postgres-clusters.hook.chroot     # 3 clusters: timeseries/document/vector
-│   │   ├── 0030-install-minio.hook.chroot.example # TEMPLATE — pin version, rename
-│   │   ├── 0040-install-ollama.hook.chroot.example# TEMPLATE — pin version, rename
+│   │   ├── 0030-install-minio.hook.chroot         # unpinned-latest minio + mc (matches dev)
+│   │   ├── 0040-install-ollama.hook.chroot        # unpinned-latest ollama (matches dev)
 │   │   ├── 0050-preload-ollama-models.hook.chroot # bakes qwen3 + nomic-embed-text
 │   │   ├── 0060-preload-docker-images.hook.chroot # pulls every image in compose file
 │   │   ├── 0070-install-wizard.hook.chroot        # uv sync the FastAPI wizard venv
@@ -30,20 +30,13 @@ live-build/
 │       └── opt/arcnode/wizard/         # this repo's src/ + pyproject + uv.lock
 ```
 
-## Why two `.example` hooks?
+## MinIO + Ollama: unpinned-latest
 
-`0030-install-minio` and `0040-install-ollama` are shipped as `.example`
-files. They contain `curl | install` patterns that the build sandbox
-declines to auto-execute without explicit operator acknowledgement.
-Before building, the maintainer:
-
-1. Picks a pinned version of each binary
-2. Records the published sha256 from the release notes
-3. Renames the file (drops `.example`)
-
-This is intentional — third-party binaries land in `/usr/local/bin` of
-every shipped appliance, so the version choice + integrity check belongs
-to a human.
+Hooks 0030 + 0040 pull MinIO and Ollama from their official URLs at build
+time, unpinned. Matches the dev-server pattern
+(`tooling-playbooks/dev-services-setup.yml`) — what's in dev is what
+ships. If we ever need bit-for-bit reproducibility, pin both with sha256
+checks at that point.
 
 ## Building locally
 
