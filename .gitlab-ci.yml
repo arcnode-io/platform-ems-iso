@@ -74,6 +74,12 @@ bake:
     # 5. Upload finished ISO to S3 under the deterministic key
     - ISO_FILE=$(ls $LIVEBUILD_DIR/arcnode-ems-*.iso | head -1)
     - test -n "$ISO_FILE" || (echo "no ISO produced"; exit 1)
+    # 6. qemu smoke — boot the ISO, wait for the wizard, fail the job if it
+    #    never answers. Catches packaging regressions before the customer
+    #    downloads.
+    - SMOKE_TIMEOUT_S=420 scripts/qemu_smoke.sh "$ISO_FILE"
+    # 7. Upload finished ISO to S3 under the deterministic key (post-smoke
+    #    so we never ship a broken ISO).
     - aws s3 cp "$ISO_FILE" "s3://arcnode-public/iso/customers/$ORDER_ID/arcnode-ems-$ORDER_ID.iso" --no-progress
   artifacts:
     when: always
