@@ -100,6 +100,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     restart: unless-stopped
+    <<: *env-files
     volumes:
       - /etc/arcnode/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - /var/lib/arcnode/prometheus-data:/prometheus
@@ -120,6 +121,7 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     restart: unless-stopped
+    <<: *env-files
     volumes:
       - /var/lib/arcnode/mlflow-data:/mlflow/mlruns
       - /var/lib/arcnode/mlflow-artifacts:/mlflow/artifacts
