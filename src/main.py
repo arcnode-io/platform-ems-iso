@@ -28,8 +28,13 @@ def main() -> None:
 
     if TLS_CERT.exists() and TLS_KEY.exists():
         log.info("starting wizard on https://0.0.0.0:443 (TLS)")
-        uvicorn.run(app, host="0.0.0.0", port=443,  # noqa: S104 — appliance must be LAN-reachable
-                    ssl_keyfile=str(TLS_KEY), ssl_certfile=str(TLS_CERT))
+        uvicorn.run(
+            app,
+            host="0.0.0.0",  # noqa: S104 — appliance must be LAN-reachable
+            port=443,
+            ssl_keyfile=str(TLS_KEY),
+            ssl_certfile=str(TLS_CERT),
+        )
     else:
         # First boot: no TLS yet — operator hits http://<appliance>/ and uploads
         # or self-signs cert during the TLS step. Wizard restarts itself with

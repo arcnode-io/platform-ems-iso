@@ -43,8 +43,8 @@ class InstallIdentity(_Wire):
 class ApiKey(_Wire):
     """One API-key field from the wizard's API-keys step."""
 
-    id: str                              # 'openweathermap' | 'gridstatus' | ...
-    value: str | None = None             # secret material; None if skipped
+    id: str  # 'openweathermap' | 'gridstatus' | ...
+    value: str | None = None  # secret material; None if skipped
     skipped: bool = False
 
 
@@ -52,15 +52,15 @@ class TlsConfig(_Wire):
     """Wizard's TLS step result."""
 
     mode: str = Field(pattern="^(self_signed|upload)$")
-    cert_pem: str | None = None          # only when mode='upload'
-    key_pem: str | None = None           # only when mode='upload'
+    cert_pem: str | None = None  # only when mode='upload'
+    key_pem: str | None = None  # only when mode='upload'
 
 
 class AdminLogin(_Wire):
     """HMI admin credentials chosen at the wizard's final step."""
 
     username: str = Field(min_length=1)
-    password: str = Field(min_length=8)   # strength meter is client-side advice
+    password: str = Field(min_length=8)  # strength meter is client-side advice
 
 
 class ApplyRequest(_Wire):
@@ -75,4 +75,4 @@ class ApplyResult(_Wire):
     """POST /setup/apply success response."""
 
     ok: bool = True
-    redirect: str = "/"                  # where to send the operator after success
+    redirect: str = "/"  # where to send the operator after success
