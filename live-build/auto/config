@@ -39,7 +39,10 @@ fi
 # rewrite existing config/binary, so explicitly set it post-config. Adds
 # console=ttyS0 so the kernel logs to both VGA and serial — required for
 # our qemu integration test to capture boot diagnostics.
-BOOTAPPEND="boot=live components quiet splash console=tty0 console=ttyS0,115200n8"
+# Reason: `quiet splash` dropped — we need verbose systemd output to
+# diagnose why arcnode-wizard isn't binding port 80 in the qemu test.
+# Re-add once the wizard reliably comes up + the demo polish phase starts.
+BOOTAPPEND="boot=live components console=tty0 console=ttyS0,115200n8 systemd.show_status=1"
 if grep -q '^LB_BOOTAPPEND_LIVE=' config/binary 2>/dev/null; then
   sed -i "s|^LB_BOOTAPPEND_LIVE=.*|LB_BOOTAPPEND_LIVE=\"${BOOTAPPEND}\"|" config/binary
 else
