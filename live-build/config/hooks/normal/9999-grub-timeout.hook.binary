@@ -18,10 +18,13 @@ set -e
 #      the framebuffer. Without this, headless qemu (no display + no serial
 #      grub) means grub's menu rendering goes nowhere and the kernel
 #      never gets loaded even with the timeout set.
-PREAMBLE='set timeout=10
-serial --unit=0 --speed=115200
-terminal_input  console serial
-terminal_output console serial'
+# Just timeout — DON'T touch terminal_output. Forcing serial as a grub
+# output target broke boot on a real customer's hardware (USB boots to
+# blinking cursor, no menu render). Default grub terminal_output=console
+# works on real hardware AND in qemu (qemu's -vga std + -display none
+# absorbs grub's VGA output silently while the kernel logs to ttyS0 via
+# console=ttyS0 in the kernel cmdline).
+PREAMBLE='set timeout=10'
 
 for CFG in boot/grub/grub.cfg boot/grub/x86_64-efi/grub.cfg; do
   [ -f "$CFG" ] || continue
