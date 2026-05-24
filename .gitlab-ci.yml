@@ -41,7 +41,10 @@ publish:
     - mkdir -p live-build/config/includes.chroot/etc/arcnode
     - cp live-build/config/install.json.reference live-build/config/includes.chroot/etc/arcnode/install.json
     - mkdir -p live-build/config/includes.chroot/opt/arcnode/wizard
-    - cp -r src pyproject.toml uv.lock cfg.yml live-build/config/includes.chroot/opt/arcnode/wizard/
+    # Copy wizard/ subdir too — src/app.py resolves STATIC_DIR/TEMPLATES_DIR
+    # via Path(__file__).parent.parent / "wizard", so the layout under
+    # /opt/arcnode/wizard/ must include the wizard/ subdir alongside src/.
+    - cp -r src wizard pyproject.toml uv.lock cfg.yml live-build/config/includes.chroot/opt/arcnode/wizard/
     # Build
     - cd live-build
     - sudo lb clean --purge
