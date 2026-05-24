@@ -58,6 +58,8 @@ publish:
     # ISOs never publish.
     - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot.py -vv
     # Upload to deterministic S3 key per commit + a stable "latest" alias.
+    # Bucket policy grants s3:GetObject on iso/reference/* publicly; no
+    # per-object ACL needed (would be blocked by BlockPublicAcls anyway).
     - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
     - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-latest.iso"
   only:
