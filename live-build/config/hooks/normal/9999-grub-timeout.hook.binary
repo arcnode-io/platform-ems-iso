@@ -11,10 +11,27 @@ set -e
 
 # Patch both BIOS + EFI grub configs. Hook runs with CWD = live-build/binary/
 # staging dir (not live-build/), so paths are relative to binary/.
+#
+# Two patches:
+#   1. set timeout=3            — auto-boot the default entry after 3s
+#   2. serial/terminal config   — route grub UI through ttyS0 in addition to
+#      the framebuffer. Without this, headless qemu (no display + no serial
+#      grub) means grub's menu rendering goes nowhere and the kernel
+#      never gets loaded even with the timeout set.
+PREAMBLE='set timeout=3
+serial --unit=0 --speed=115200
+terminal_input  console serial
+terminal_output console serial'
+
 for CFG in boot/grub/grub.cfg boot/grub/x86_64-efi/grub.cfg; do
   [ -f "$CFG" ] || continue
   if ! grep -q '^set timeout=' "$CFG"; then
-    sed -i '1iset timeout=3' "$CFG"
-    echo "patched $CFG with set timeout=3"
+    # Prepend the whole preamble in one shot
+    {
+      printf '%s\n' "$PREAMBLE"
+      cat "$CFG"
+    } > "$CFG.new"
+    mv "$CFG.new" "$CFG"
+    echo "patched $CFG with timeout+serial preamble"
   fi
 done
