@@ -58,6 +58,11 @@ def booted_iso(
     )
 
     host_port = _pick_free_port()
+    # Reason: `-nographic` redirects VGA to serial which trips grub's
+    # terminal rendering (interleaves error strings with cursor-positioning
+    # escape codes; the boot menu never auto-advances). `-display none`
+    # keeps a virtual VGA framebuffer (which grub renders to and qemu
+    # drops on the floor), `-serial file:` keeps kernel logs for debug.
     qemu = subprocess.Popen(
         [
             "qemu-system-x86_64",
@@ -78,7 +83,10 @@ def booted_iso(
             f"user,id=net0,hostfwd=tcp:127.0.0.1:{host_port}-:80",
             "-device",
             "virtio-net-pci,netdev=net0",
-            "-nographic",
+            "-display",
+            "none",
+            "-vga",
+            "std",
             "-serial",
             f"file:{work / 'serial.log'}",
             "-monitor",
