@@ -34,3 +34,14 @@ if grep -q '^LB_BOOTSTRAP_INCLUDES=' config/bootstrap 2>/dev/null; then
 else
   echo 'LB_BOOTSTRAP_INCLUDES="ca-certificates"' >> config/bootstrap
 fi
+
+# Force LB_BOOTAPPEND_LIVE — `lb config --bootappend-live` doesn't always
+# rewrite existing config/binary, so explicitly set it post-config. Adds
+# console=ttyS0 so the kernel logs to both VGA and serial — required for
+# our qemu integration test to capture boot diagnostics.
+BOOTAPPEND="boot=live components quiet splash console=tty0 console=ttyS0,115200n8"
+if grep -q '^LB_BOOTAPPEND_LIVE=' config/binary 2>/dev/null; then
+  sed -i "s|^LB_BOOTAPPEND_LIVE=.*|LB_BOOTAPPEND_LIVE=\"${BOOTAPPEND}\"|" config/binary
+else
+  echo "LB_BOOTAPPEND_LIVE=\"${BOOTAPPEND}\"" >> config/binary
+fi
