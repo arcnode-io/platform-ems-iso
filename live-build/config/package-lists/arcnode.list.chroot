@@ -20,12 +20,6 @@ sudo
 apt-transport-https
 # Ollama's install.sh extracts a zstd-compressed tarball
 zstd
-# live-installer: when the operator picks "Install" at grub, this lets
-# d-i copy the live squashfs to disk instead of fetching a fresh debian.
-# Preserves all our customizations (postgres clusters, neo4j, minio,
-# ollama, wizard, hooks-baked state). LB_DEBIAN_INSTALLER=live alone
-# wasn't enough — the udeb has to physically land in d-i's initrd.
-live-installer
 
 # --- Data daemons (debian-native only here) ------------------------
 postgresql-15
