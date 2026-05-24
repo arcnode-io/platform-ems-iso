@@ -1,0 +1,42 @@
+#!/bin/sh
+# Inject live-installer udeb into d-i's initrd so picking "Install" from
+# grub copies the live squashfs to disk instead of installing vanilla
+# debian. LB_DEBIAN_INSTALLER=live in lb config should do this for us
+# but doesn't in this live-build version — verified by extracting
+# install/initrd.gz and grepping for 'live-installer' (zero hits).
+#
+# Runs in the binary stage with CWD = live-build/binary/. The d-i initrd
+# lives at install/initrd.gz at this point.
+set -e
+
+INITRD=install/initrd.gz
+if [ ! -f "$INITRD" ]; then
+  echo "inject-live-installer: $INITRD not found, skipping"
+  exit 0
+fi
+
+# Resolve the latest live-installer udeb URL from bookworm-d-i index
+INDEX_URL="https://deb.debian.org/debian/dists/bookworm/main/debian-installer/binary-amd64/Packages.gz"
+UDEB_PATH=$(curl -fsSL "$INDEX_URL" | gunzip -c | \
+  awk '/^Package: live-installer$/{found=1} found && /^Filename:/{print $2; exit}')
+
+if [ -z "$UDEB_PATH" ]; then
+  echo "inject-live-installer: ERROR — couldn't resolve live-installer udeb from $INDEX_URL"
+  exit 1
+fi
+
+UDEB_URL="https://deb.debian.org/debian/$UDEB_PATH"
+WORK=$(mktemp -d)
+trap "rm -rf $WORK" EXIT
+
+# Extract existing initrd
+( cd "$WORK" && gunzip -c "$OLDPWD/$INITRD" | cpio -id --quiet )
+
+# Download + extract the udeb on top
+curl -fsSL "$UDEB_URL" -o "$WORK/live-installer.udeb"
+( cd "$WORK" && dpkg-deb -x live-installer.udeb . && rm live-installer.udeb )
+
+# Re-pack
+( cd "$WORK" && find . | cpio -o -H newc --quiet | gzip ) > "$INITRD"
+
+echo "inject-live-installer: udeb from $UDEB_PATH injected into $INITRD"
