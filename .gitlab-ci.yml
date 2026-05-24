@@ -53,9 +53,11 @@ publish:
     - cd ..
     - ISO=$(ls live-build/arcnode-ems-*.iso | head -1)
     - test -n "$ISO" || (echo "no ISO produced"; exit 1)
-    # Boot the ISO in qemu, drive the wizard via HTTP. Fails the job if
-    # the wizard doesn't answer, blocking the S3 upload below — broken
-    # ISOs never publish.
+    # Cheap structural assertions FIRST (~30s) — catches the "my hook
+    # silently didn't fire" class of bug before we spend 7 min booting.
+    - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_contents.py -vv
+    # Then boot the ISO in qemu, drive the wizard via HTTP. Fails the job
+    # if the wizard doesn't answer, blocking the S3 upload below.
     - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot.py -vv
     # Upload to deterministic S3 key per commit + a stable "latest" alias.
     # Bucket policy grants s3:GetObject on iso/reference/* publicly; no
