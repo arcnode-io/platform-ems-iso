@@ -35,3 +35,16 @@ for CFG in boot/grub/grub.cfg boot/grub/x86_64-efi/grub.cfg; do
     echo "patched $CFG with timeout+serial preamble"
   fi
 done
+
+# Patch install entries (top-level + advanced submenu) to load our preseed
+# so "Install" runs d-i in live-installer mode (copies live squashfs to
+# disk) instead of fetching a fresh debian.
+for CFG in boot/grub/grub.cfg boot/grub/install_start.cfg boot/grub/install.cfg \
+           boot/grub/x86_64-efi/grub.cfg boot/grub/x86_64-efi/install_start.cfg \
+           boot/grub/x86_64-efi/install.cfg; do
+  [ -f "$CFG" ] || continue
+  if grep -q '/install/vmlinuz' "$CFG" && ! grep -q 'preseed/file=' "$CFG"; then
+    sed -i 's|linux\(.*\)/install/vmlinuz\(.*\)|linux\1/install/vmlinuz\2 preseed/file=/cdrom/install/preseed.cfg auto=true priority=critical|' "$CFG"
+    echo "patched $CFG install entries with preseed.cfg"
+  fi
+done
