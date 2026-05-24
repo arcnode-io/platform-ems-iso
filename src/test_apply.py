@@ -110,11 +110,24 @@ def test_write_tls_self_signed_calls_openssl(tmp_path: Path) -> None:
 def test_kick_compose_unit_calls_systemctl_start() -> None:
     # Arrange + Act
     with patch("src.apply.subprocess.run") as run:
-        kick_compose_unit()
+        run.return_value.returncode = 0
+        ok = kick_compose_unit()
 
-    # Assert — exact systemctl argv shape
+    # Assert — exact systemctl argv shape + reports success
     args = run.call_args.args[0]
     assert args == ["systemctl", "start", "arcnode-compose.service"]
+    assert ok is True
+
+
+def test_kick_compose_unit_returns_false_on_nonzero_exit() -> None:
+    # Arrange + Act — systemctl failure must not raise; caller decides
+    with patch("src.apply.subprocess.run") as run:
+        run.return_value.returncode = 1
+        run.return_value.stderr = "Failed to start unit"
+        ok = kick_compose_unit()
+
+    # Assert
+    assert ok is False
 
 
 def test_setup_complete_marker_round_trip(tmp_path: Path) -> None:

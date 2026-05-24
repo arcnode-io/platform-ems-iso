@@ -11,6 +11,7 @@ long-running unit. Service-up wait is left to systemd's healthchecks.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -90,17 +91,30 @@ def write_tls(tls: TlsConfig, target_dir: Path = TLS_DIR) -> None:
     (target_dir / "server.crt").chmod(0o644)
 
 
-def kick_compose_unit() -> None:
+def kick_compose_unit() -> bool:
     """Trigger systemd's arcnode-compose.service via systemctl.
 
-    Preferred over calling docker compose directly — lets systemd manage
-    state, log to journald, restart on failure. Wizard ends up handing off
-    to a real long-running unit instead of leaving a detached compose run.
+    Returns True if systemctl reported success, False otherwise. Caller
+    decides whether a failure aborts the apply pipeline. Reason: under
+    constrained hardware (qemu integration test, or a customer host
+    that's tight on RAM), one of the data daemons (postgres-timeseries
+    OOMs, neo4j slow-starts) may not be Active yet when arcnode-compose
+    fires — its Requires=docker.service After=postgresql@15-... ordering
+    means systemctl start returns non-zero. That's an appliance-runtime
+    concern, not a wizard-contract failure. systemd will retry or the
+    operator can reboot.
     """
-    subprocess.run(
+    result = subprocess.run(
         ["systemctl", "start", "arcnode-compose.service"],
-        check=True,
+        check=False, capture_output=True, text=True,
     )
+    if result.returncode != 0:
+        logging.warning(
+            "systemctl start arcnode-compose.service failed (rc=%d). "
+            "Wizard apply will still succeed; operator should investigate. "
+            "stderr=%s", result.returncode, result.stderr.strip()[:500],
+        )
+    return result.returncode == 0
 
 
 def mark_setup_complete(marker: Path = SETUP_COMPLETE_MARKER) -> None:
@@ -115,7 +129,13 @@ def is_setup_complete(marker: Path = SETUP_COMPLETE_MARKER) -> bool:
 
 
 def apply_all(req: ApplyRequest) -> None:
-    """Full apply pipeline — write everything, mark done, hand off to systemd."""
+    """Full apply pipeline — write everything, mark done, hand off to systemd.
+
+    kick_compose_unit failures are warn-and-continue: the wizard's
+    contract is config-on-disk + marker, not "compose stack is live."
+    Operator sees the warning in journalctl + can `systemctl start
+    arcnode-compose` manually after fixing the underlying issue.
+    """
     write_secrets(req.api_keys, req.admin.password)
     write_tls(req.tls)
     # Marker BEFORE the systemctl call — arcnode-compose has
