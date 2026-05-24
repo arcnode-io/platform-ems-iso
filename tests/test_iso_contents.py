@@ -10,13 +10,10 @@ Skipped unless ARCNODE_ISO_PATH is set (same gate as test_iso_boot).
 from __future__ import annotations
 
 import gzip
-import io
 import subprocess
 from pathlib import Path
 
-import pytest
-
-from tests.iso_fixtures import iso_path  # noqa: F401 — pytest fixture import
+from tests.iso_fixtures import iso_path  # pytest fixture import
 
 
 def _extract(iso: Path, member: str) -> bytes:
@@ -24,7 +21,8 @@ def _extract(iso: Path, member: str) -> bytes:
     e.g. /boot/grub/grub.cfg."""
     result = subprocess.run(
         ["xorriso", "-indev", str(iso), "-osirrox", "on", "-extract", member, "-"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     return result.stdout
 
@@ -33,7 +31,9 @@ def _list(iso: Path, path: str = "/") -> list[str]:
     """List the contents of a directory inside the ISO."""
     result = subprocess.run(
         ["xorriso", "-indev", str(iso), "-ls", path],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     # xorriso emits files as 'name' (quoted, one per line, plus headers)
     return [
@@ -102,18 +102,12 @@ def test_di_initrd_contains_live_installer(iso_path: Path) -> None:
     do the 'copy live squashfs to disk' trick. We inject it via
     hook 8500 — this test catches the case where that injection silently
     fails (e.g. mirror unreachable, udeb gone from bookworm-d-i)."""
-    # Act
+    # Act — initrd is a cpio archive. Scan raw bytes for the udeb's
+    # filename pattern; avoids unpacking 22MB just to check presence.
     initrd_gz = _extract(iso_path, "/install/initrd.gz")
     initrd = gzip.decompress(initrd_gz)
-    # initrd is a cpio archive — just scan bytes for live-installer paths
-    # to avoid actually unpacking 22MB. The udeb installs scripts at
-    # /var/lib/dpkg/info/live-installer.* + /usr/lib/.../live-installer*
-    has_live_installer = (
-        b"live-installer" in initrd
-        and b"live-installer" in initrd.split(b"\x00")[0:1024 * 1024][0]  # sentinel
-        or True  # fallback to simple check
-    )
-    # Simpler: just check the bytes
+
+    # Assert
     assert b"live-installer" in initrd, (
         "d-i initrd doesn't contain live-installer payload — picking "
         "Install at grub will install vanilla debian, not our appliance"
@@ -126,6 +120,6 @@ def test_squashfs_contains_arcnode_wizard(iso_path: Path) -> None:
     files = _list(iso_path, "/")
 
     # Assert — squashfs is present (live-build always names it filesystem.squashfs)
-    assert any("filesystem.squashfs" in f or "live" in f.lower() for f in files), (
-        "no live squashfs in ISO root — boot will have no rootfs"
-    )
+    assert any(
+        "filesystem.squashfs" in f or "live" in f.lower() for f in files
+    ), "no live squashfs in ISO root — boot will have no rootfs"

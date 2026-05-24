@@ -106,13 +106,17 @@ def kick_compose_unit() -> bool:
     """
     result = subprocess.run(
         ["systemctl", "start", "arcnode-compose.service"],
-        check=False, capture_output=True, text=True,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         logging.warning(
             "systemctl start arcnode-compose.service failed (rc=%d). "
             "Wizard apply will still succeed; operator should investigate. "
-            "stderr=%s", result.returncode, result.stderr.strip()[:500],
+            "stderr=%s",
+            result.returncode,
+            result.stderr.strip()[:500],
         )
     return result.returncode == 0
 
