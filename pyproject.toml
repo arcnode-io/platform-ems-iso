@@ -39,7 +39,7 @@ dev = [
 # umbrella; same for uvicorn/python-multipart entry-points used by fastapi.
 # jinja2 used via fastapi.templating.Jinja2Templates — deptry doesn't follow.
 # Tests in src/test_*.py import pytest (dev) — exclude them from the scan.
-depcheck = "deptry . --per-rule-ignores DEP002=starlette|python-multipart|jinja2 --extend-exclude src/test_.*"
+depcheck = "deptry . --per-rule-ignores DEP002=starlette|python-multipart|jinja2 --extend-exclude src/test_.* --extend-exclude appliance/.*"
 format = "black ."
 lint = "ruff check"
 typecheck = "ty check"

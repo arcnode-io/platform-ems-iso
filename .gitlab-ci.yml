@@ -50,6 +50,14 @@ publish:
     # (breaks the mount). Copy explicitly into that path too.
     - mkdir -p live-build/config/includes.chroot/etc/arcnode/observability
     - cp appliance/compose/prometheus.yml live-build/config/includes.chroot/etc/arcnode/observability/prometheus.yml
+    # /etc/arcnode/* files compose bind-mounts as FILES — pre-create them
+    # so docker doesn't auto-make-them-dirs. Includes dtm.json + two
+    # cfg.customer.yml placeholders.
+    - cp appliance/etc-arcnode/* live-build/config/includes.chroot/etc/arcnode/
+    # init-scripts/ holds telemetry_writer.py (bind-mounted into the
+    # telemetry-writer container).
+    - mkdir -p live-build/config/includes.chroot/etc/arcnode/init-scripts
+    - cp appliance/init-scripts/* live-build/config/includes.chroot/etc/arcnode/init-scripts/
     - mkdir -p live-build/config/includes.chroot/etc/arcnode
     - cp live-build/config/install.json.reference live-build/config/includes.chroot/etc/arcnode/install.json
     - mkdir -p live-build/config/includes.chroot/opt/arcnode/wizard

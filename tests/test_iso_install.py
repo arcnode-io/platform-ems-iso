@@ -24,8 +24,8 @@ import pytest
 from tests.iso_fixtures import iso_path  # pytest fixture import
 
 INSTALL_TIMEOUT_S = 60 * 60  # 60 min: at 35 min d-i was at "Installing the
-                              # system" 60% (squashfs copy phase — the slowest).
-                              # qemu single-thread + 3.4GB rsync = legitimately slow.
+# system" 60% (squashfs copy phase — the slowest).
+# qemu single-thread + 3.4GB rsync = legitimately slow.
 POST_INSTALL_BOOT_S = 6 * 60  # 6 min: systemd brings everything up
 
 

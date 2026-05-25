@@ -1,0 +1,19 @@
+#!/bin/sh
+# Pre-create bind-mount target dirs with the UIDs the container processes
+# expect, so docker doesn't fail "permission denied" the first time a
+# container tries to write to its volume.
+#
+# - grafana runs as UID 472 inside the container
+# - prometheus runs as UID 65534 (nobody)
+#
+# Without these, docker auto-creates the dirs as root-owned 755 → container
+# CrashLoopBackoff on "can't create /var/lib/grafana/plugins".
+set -e
+
+mkdir -p /var/lib/arcnode/grafana-data
+chown -R 472:472 /var/lib/arcnode/grafana-data
+
+mkdir -p /var/lib/arcnode/prometheus-data
+chown -R 65534:65534 /var/lib/arcnode/prometheus-data
+
+mkdir -p /var/lib/arcnode/mlflow-data /var/lib/arcnode/mlflow-artifacts

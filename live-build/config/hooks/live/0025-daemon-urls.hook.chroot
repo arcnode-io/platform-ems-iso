@@ -13,15 +13,22 @@
 #    connections, no creds, fixed at build time. Wizard never touches it.
 set -e
 
-# 1. Postgres trust auth — match BOTH local and host 127.0.0.1 entries
+# 1. Postgres trust auth — match local + host 127.0.0.1 + host ::1 entries.
+# Use ERE (-E) + `#` delimiter — the BRE form was silently failing on
+# `host all all 127.0.0.1/32` because the `|` literal in the regex clashed
+# with the `|` sed delimiter. ERE makes the alternation native + `#` keeps
+# the delimiter clear of regex specials.
 for CLUSTER in timeseries document vector; do
   HBA="/etc/postgresql/15/$CLUSTER/pg_hba.conf"
   if [ ! -f "$HBA" ]; then
     echo "ERROR: $HBA missing — did hook 0020 run?"
     exit 1
   fi
-  sed -i 's/^\(local\s\+all\s\+all\s\+\)\(md5\|peer\|scram-sha-256\)/\1trust/' "$HBA"
-  sed -i 's|^\(host\s\+all\s\+all\s\+127.0.0.1/32\s\+\)\(md5\|peer\|scram-sha-256\)|\1trust|' "$HBA"
+  sed -E -i \
+    -e 's#^(local[[:space:]]+all[[:space:]]+all[[:space:]]+)(md5|peer|scram-sha-256)#\1trust#' \
+    -e 's#^(host[[:space:]]+all[[:space:]]+all[[:space:]]+127\.0\.0\.1/32[[:space:]]+)(md5|peer|scram-sha-256)#\1trust#' \
+    -e 's#^(host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128[[:space:]]+)(md5|peer|scram-sha-256)#\1trust#' \
+    "$HBA"
 done
 
 # 2. Neo4j: drop-in conf disabling auth

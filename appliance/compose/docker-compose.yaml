@@ -36,6 +36,7 @@ services:
   device-api:
     image: public.ecr.aws/y1d2j6a8/ems-device-api:latest
     restart: unless-stopped
+    network_mode: host                     # DOCUMENT_URL → 127.0.0.1:5434 (host postgres)
     <<: *env-files
     environment:
       BOOT_DTM_PATH: /app/dtm.json
@@ -97,6 +98,7 @@ services:
   analyst-model:
     image: public.ecr.aws/y1d2j6a8/ems-analyst-model:latest
     restart: unless-stopped
+    network_mode: host                     # TIMESERIES_URL + OLLAMA_URL → 127.0.0.1
     <<: *env-files
 
   # Observability + ML tracking — matches cloud post-backfill. Internal
