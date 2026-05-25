@@ -31,12 +31,10 @@ for CLUSTER in timeseries document vector; do
     "$HBA"
 done
 
-# 2. Neo4j: drop-in conf disabling auth
-mkdir -p /etc/neo4j/conf.d
-cat > /etc/neo4j/conf.d/no-auth.conf <<'EOF'
-# Single-tenant appliance — auth disabled.
-dbms.security.auth_enabled=false
-EOF
+# 2. Neo4j: disable auth in /etc/neo4j/neo4j.conf. Debian's neo4j package
+# doesn't read conf.d/ — only /etc/neo4j/neo4j.conf is honored. Uncomment
+# the auth_enabled line (debian ships it commented out).
+sed -i 's/^#dbms.security.auth_enabled=false/dbms.security.auth_enabled=false/' /etc/neo4j/neo4j.conf
 
 # 3. Daemon URLs for compose env_file
 mkdir -p /etc/arcnode
@@ -46,7 +44,7 @@ cat > /etc/arcnode/daemon-urls.env <<'EOF'
 TIMESERIES_URL=postgresql://postgres@127.0.0.1:5433/postgres
 DOCUMENT_URL=postgresql://postgres@127.0.0.1:5434/postgres
 VECTOR_URL=postgresql://postgres@127.0.0.1:5435/postgres
-GRAPH_URL=bolt://127.0.0.1:7687
+GRAPH_URL=bolt://neo4j:arcnode@127.0.0.1:7687
 MINIO_ENDPOINT=http://127.0.0.1:9000
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin

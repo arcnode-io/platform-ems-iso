@@ -9,6 +9,7 @@ set -e
 # all of them up front.
 systemctl enable arcnode-wizard.service
 systemctl enable arcnode-compose.service
+systemctl enable arcnode-pgvector.service
 systemctl enable minio.service
 systemctl enable ollama.service
 systemctl enable docker.service
