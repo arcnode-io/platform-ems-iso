@@ -49,23 +49,44 @@ def installed_iso(
     host_port = _pick_free_port()
 
     # ---- Phase 1: Install ----
-    # Boot ISO, grub auto-times-out to live by default. We want Install,
-    # so we pexpect through grub: at the menu, hit 'i' (the Install
-    # menuentry hotkey we shipped — `--hotkey=i`).
+    # Extract d-i kernel + initrd from the ISO, boot qemu with -kernel/-initrd
+    # directly. Bypasses grub entirely — way more reliable than driving the
+    # grub menu via pexpect (grub doesn't write to serial in our config, so
+    # pexpect can't time the 'i' keypress against the menu).
+    vmlinuz = work / "install-vmlinuz"
+    initrd = work / "install-initrd.gz"
+    for member, dst in [("/install/vmlinuz", vmlinuz), ("/install/initrd.gz", initrd)]:
+        subprocess.run(
+            [
+                "xorriso",
+                "-indev",
+                str(iso_path),
+                "-osirrox",
+                "on:auto_chmod_on",
+                "-extract",
+                member,
+                str(dst),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
     serial_log = work / "install-serial.log"
+    # Pass the preseed args directly via -append; same as what our grub
+    # entries already set after hook 9999 patches them.
     install_cmd = (
         "qemu-system-x86_64 -enable-kvm -cpu host -smp 2 -m 4096 "
         f"-drive file={disk},format=qcow2,if=virtio "
-        f"-cdrom {iso_path} -boot d "
+        f"-cdrom {iso_path} "
+        f"-kernel {vmlinuz} -initrd {initrd} "
+        "-append 'auto=true priority=critical "
+        "preseed/file=/cdrom/install/preseed.cfg "
+        "console=ttyS0,115200n8' "
         "-display none -monitor none "
         f"-serial mon:stdio"
     )
     p = pexpect.spawn(install_cmd, encoding="utf-8", timeout=120)
     p.logfile_read = serial_log.open("w")  # closed implicitly when p is killed
-
-    # Grub timeout is 10s — hit 'i' (Install hotkey) within that window
-    p.expect(["Live system", "GNU GRUB", pexpect.TIMEOUT], timeout=60)
-    p.sendline("i")  # picks the Install menuentry by hotkey
 
     # Wait for "Installation complete" — d-i prints this right before reboot
     print("\n=== install started, waiting up to 20 min ===", flush=True)
