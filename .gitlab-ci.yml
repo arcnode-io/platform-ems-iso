@@ -30,6 +30,9 @@ checks:
 
 publish:
   stage: publish
+  # lb build ~14m + live boot tests ~7m + S3 upload ~10m + install test ~35m
+  # = ~66m worst case. gitlab-runner default is 60m → job killed mid-install.
+  timeout: 90m
   after_script:
     - sudo chown -R gitlab-runner:gitlab-runner . 2>/dev/null || true
   script:
