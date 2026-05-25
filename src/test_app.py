@@ -42,7 +42,9 @@ def test_root_renders_setup_html_with_identity_inlined(
     baked_identity: Path, marker: Path
 ) -> None:
     # Arrange
-    app = create_app(identity_path=baked_identity, setup_marker=marker)
+    app = create_app(
+        identity_path=baked_identity, setup_marker=marker, exit_after_apply=False
+    )
     client = TestClient(app)
 
     # Act
@@ -60,7 +62,9 @@ def test_hardware_endpoint_returns_camelcase_report(
     baked_identity: Path, marker: Path
 ) -> None:
     # Arrange
-    app = create_app(identity_path=baked_identity, setup_marker=marker)
+    app = create_app(
+        identity_path=baked_identity, setup_marker=marker, exit_after_apply=False
+    )
     client = TestClient(app)
 
     # Act
@@ -84,7 +88,9 @@ def test_identity_endpoint_returns_camelcase_json(
     baked_identity: Path, marker: Path
 ) -> None:
     # Arrange
-    app = create_app(identity_path=baked_identity, setup_marker=marker)
+    app = create_app(
+        identity_path=baked_identity, setup_marker=marker, exit_after_apply=False
+    )
     client = TestClient(app)
 
     # Act
@@ -103,7 +109,10 @@ def test_apply_calls_pipeline_and_returns_redirect(
     # Arrange — fake apply_fn so we don't actually touch /etc or docker
     fake_apply = MagicMock()
     app = create_app(
-        identity_path=baked_identity, setup_marker=marker, apply_fn=fake_apply
+        identity_path=baked_identity,
+        setup_marker=marker,
+        apply_fn=fake_apply,
+        exit_after_apply=False,
     )
     client = TestClient(app)
     payload = {
@@ -129,7 +138,9 @@ def test_routes_return_410_when_setup_already_complete(
     # Arrange — pre-create the marker; valid body so we're testing the guard, not validation
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text("2026-05-22T00:00:00+00:00")
-    app = create_app(identity_path=baked_identity, setup_marker=marker)
+    app = create_app(
+        identity_path=baked_identity, setup_marker=marker, exit_after_apply=False
+    )
     client = TestClient(app)
     valid_apply = {
         "apiKeys": [],

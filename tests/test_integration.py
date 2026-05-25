@@ -32,6 +32,7 @@ def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
         identity_path=identity,
         setup_marker=marker,
         apply_fn=lambda _: None,  # don't actually touch disk + systemd
+        exit_after_apply=False,  # don't kill the test process
     )
     client = TestClient(app)
 
