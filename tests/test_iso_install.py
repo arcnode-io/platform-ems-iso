@@ -23,7 +23,9 @@ import pytest
 
 from tests.iso_fixtures import iso_path  # pytest fixture import
 
-INSTALL_TIMEOUT_S = 20 * 60  # 20 min: install + reboot
+INSTALL_TIMEOUT_S = 35 * 60  # 35 min: previous bake's serial.log showed d-i
+                              # reaching "Finishing the installation" 40%
+                              # at 20 min — we were just running out of clock.
 POST_INSTALL_BOOT_S = 6 * 60  # 6 min: systemd brings everything up
 
 
