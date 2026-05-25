@@ -1,2 +1,4 @@
-# Placeholder — appliance default. Wizard or operator overrides at runtime.
-{}
+# Appliance defaults for the industrial-gateway service.
+# Host-network compose service connects to host daemons via 127.0.0.1.
+device_api_url: http://127.0.0.1:3000
+broker_url: tcp://127.0.0.1:1883
