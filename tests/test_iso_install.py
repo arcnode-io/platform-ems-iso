@@ -83,7 +83,18 @@ def installed_iso(
             continue
     if not install_done:
         p.terminate()
-        pytest.fail(f"install didn't complete in {INSTALL_TIMEOUT_S}s")
+        # Dump the tail of the pexpect logfile so we can see WHERE d-i
+        # stalled. Without this, "install didn't complete in 1200s" is
+        # useless — could be grub never got picked, could be a missing
+        # preseed answer hanging at a prompt, could be live-installer
+        # rsync just being slow.
+        log_tail = ""
+        if serial_log.exists():
+            log_tail = serial_log.read_text(errors="replace")[-4000:]
+        pytest.fail(
+            f"install didn't complete in {INSTALL_TIMEOUT_S}s\n"
+            f"--- serial.log tail (last 4KB) ---\n{log_tail}"
+        )
 
     # d-i reboots; let qemu exit cleanly. We'll restart it with -boot c.
     print("\n=== install complete, killing qemu to switch boot order ===", flush=True)
