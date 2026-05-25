@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import gzip
 import subprocess
+import tempfile
 from pathlib import Path
 
 from tests.iso_fixtures import iso_path  # pytest fixture import
@@ -18,13 +19,26 @@ from tests.iso_fixtures import iso_path  # pytest fixture import
 
 def _extract(iso: Path, member: str) -> bytes:
     """Pull one file out of the ISO image to bytes. Member is the ISO path,
-    e.g. /boot/grub/grub.cfg."""
-    result = subprocess.run(
-        ["xorriso", "-indev", str(iso), "-osirrox", "on", "-extract", member, "-"],
-        check=True,
-        capture_output=True,
-    )
-    return result.stdout
+    e.g. /boot/grub/grub.cfg. xorriso's -extract takes a real filesystem
+    path as the destination and refuses to overwrite — so we extract into
+    a fresh tmpdir and read back the basename."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        local = Path(tmpdir) / "out"
+        subprocess.run(
+            [
+                "xorriso",
+                "-indev",
+                str(iso),
+                "-osirrox",
+                "on:auto_chmod_on",
+                "-extract",
+                member,
+                str(local),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return local.read_bytes()
 
 
 def _list(iso: Path, path: str = "/") -> list[str]:
