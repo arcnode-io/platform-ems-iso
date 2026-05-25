@@ -34,13 +34,6 @@ const API_KEYS = [
     skippedNote: 'Bidding agent disabled. Site stays in self-consumption mode.',
     placeholder: 'gs_live_…',
   },
-  {
-    id: 'nrel',
-    label: 'NREL Developer API',
-    desc: 'Solar resource baselines for the PV forecaster — used during commissioning.',
-    skippedNote: 'PV forecaster falls back to typical-year baseline.',
-    placeholder: 'optional',
-  },
 ];
 
 // ─── Steps definition ────────────────────────────────────────────────
@@ -994,7 +987,6 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
     apiKeys: {
       openweathermap: { key: 'a1b2c3d4e5f6g7h8', skipped: false },
       gridstatus:     { key: '', skipped: true },
-      nrel:           { key: '', skipped: false },
     },
     tls: { mode: 'selfsigned', cert: null, key: null },
     admin: { username: 'admin', password: 'correct-horse-battery-staple', confirm: 'correct-horse-battery-staple' },
