@@ -45,6 +45,11 @@ publish:
     - cp appliance/systemd/*.service live-build/config/includes.chroot/etc/systemd/system/
     - mkdir -p live-build/config/includes.chroot/etc/arcnode/compose
     - cp appliance/compose/* live-build/config/includes.chroot/etc/arcnode/compose/
+    # compose bind-mounts prometheus.yml from /etc/arcnode/observability/.
+    # Without the file existing, docker auto-creates it as a directory
+    # (breaks the mount). Copy explicitly into that path too.
+    - mkdir -p live-build/config/includes.chroot/etc/arcnode/observability
+    - cp appliance/compose/prometheus.yml live-build/config/includes.chroot/etc/arcnode/observability/prometheus.yml
     - mkdir -p live-build/config/includes.chroot/etc/arcnode
     - cp live-build/config/install.json.reference live-build/config/includes.chroot/etc/arcnode/install.json
     - mkdir -p live-build/config/includes.chroot/opt/arcnode/wizard

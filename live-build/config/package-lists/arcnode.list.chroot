@@ -20,6 +20,10 @@ sudo
 apt-transport-https
 # Ollama's install.sh extracts a zstd-compressed tarball
 zstd
+# Docker refuses to start containers if AppArmor is in the kernel but
+# apparmor_parser isn't on disk. Live ISO has AppArmor kernel module
+# (debian default), so we need the userspace tool too.
+apparmor
 
 # --- Data daemons (debian-native only here) ------------------------
 postgresql-15
