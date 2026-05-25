@@ -24,7 +24,11 @@ set -e
 # works on real hardware AND in qemu (qemu's -vga std + -display none
 # absorbs grub's VGA output silently while the kernel logs to ttyS0 via
 # console=ttyS0 in the kernel cmdline).
-PREAMBLE='set timeout=10'
+# Default = the renamed Install entry (set below). Operator just waits
+# 10s and gets an actual install. "Try in RAM (demo)" is a power-user
+# alt for kicking the tires without writing to disk.
+PREAMBLE='set timeout=10
+set default="ARCNODE EMS — Install to disk"'
 
 for CFG in boot/grub/grub.cfg boot/grub/x86_64-efi/grub.cfg; do
   [ -f "$CFG" ] || continue
@@ -50,4 +54,16 @@ for CFG in boot/grub/grub.cfg boot/grub/install_start.cfg boot/grub/install.cfg 
     sed -i 's|linux\(.*\)/install/vmlinuz\(.*\)|linux\1/install/vmlinuz\2 preseed/file=/cdrom/install/preseed.cfg auto=true priority=critical|' "$CFG"
     echo "patched $CFG install entries with preseed.cfg"
   fi
+done
+
+# Rebrand menuentry titles so operator sees ARCNODE-named choices
+# instead of generic "Live system" / "Start installer". Default = the
+# install entry (set in PREAMBLE above) — must match exactly.
+for CFG in boot/grub/grub.cfg boot/grub/install_start.cfg \
+           boot/grub/x86_64-efi/grub.cfg boot/grub/x86_64-efi/install_start.cfg; do
+  [ -f "$CFG" ] || continue
+  sed -i \
+    -e 's|"Live system (amd64)"|"ARCNODE EMS — Try in RAM (demo)"|g' \
+    -e "s|'Start installer'|\"ARCNODE EMS — Install to disk\"|g" \
+    "$CFG"
 done

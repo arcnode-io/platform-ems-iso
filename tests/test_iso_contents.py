@@ -83,6 +83,37 @@ def test_grub_cfg_does_not_force_serial_terminal(iso_path: Path) -> None:
     )
 
 
+def test_grub_default_is_install(iso_path: Path) -> None:
+    """Default boot entry must be the install option, not the live one.
+    Operator hits the boot menu, waits 10s, gets a real install — not
+    a volatile RAM session that loses everything on reboot.
+    """
+    # Act
+    cfg = _extract(iso_path, "/boot/grub/grub.cfg").decode()
+
+    # Assert
+    assert 'set default="ARCNODE EMS — Install to disk"' in cfg, (
+        "grub.cfg missing `set default=<install>` — auto-advances into "
+        "live mode and operator loses changes on reboot"
+    )
+
+
+def test_grub_menuentries_are_branded(iso_path: Path) -> None:
+    """Menu titles must be ARCNODE-branded so operator sees what they're
+    picking. Default debian-live titles are generic ("Live system",
+    "Start installer") and confuse non-debian operators.
+    """
+    # Act
+    cfg = (
+        _extract(iso_path, "/boot/grub/grub.cfg").decode()
+        + _extract(iso_path, "/boot/grub/install_start.cfg").decode()
+    )
+
+    # Assert
+    assert "ARCNODE EMS — Install to disk" in cfg, "install entry not branded"
+    assert "ARCNODE EMS — Try in RAM (demo)" in cfg, "live entry not branded"
+
+
 def test_install_entries_load_preseed(iso_path: Path) -> None:
     """`Install` menu entries must pass preseed/file= so d-i runs in
     live-installer mode (copies live squashfs) instead of fetching
