@@ -30,9 +30,9 @@ checks:
 
 publish:
   stage: publish
-  # lb build ~14m + live boot tests ~7m + S3 upload ~10m + install test ~35m
-  # = ~66m worst case. gitlab-runner default is 60m → job killed mid-install.
-  timeout: 90m
+  # lb build ~14m + live boot tests ~7m + S3 upload ~10m + install test ~60m
+  # = ~91m worst case. Bump to 2h for headroom.
+  timeout: 2h
   # Always runs, even on timeout/cancel. Nuke the heavy root-owned dirs
   # so the next pipeline's git clone doesn't choke trying to clean them.
   # `chown -R` was timing out (chroot has 30k+ files); `rm -rf` is faster

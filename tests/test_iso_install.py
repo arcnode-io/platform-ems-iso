@@ -23,9 +23,9 @@ import pytest
 
 from tests.iso_fixtures import iso_path  # pytest fixture import
 
-INSTALL_TIMEOUT_S = 35 * 60  # 35 min: previous bake's serial.log showed d-i
-                              # reaching "Finishing the installation" 40%
-                              # at 20 min — we were just running out of clock.
+INSTALL_TIMEOUT_S = 60 * 60  # 60 min: at 35 min d-i was at "Installing the
+                              # system" 60% (squashfs copy phase — the slowest).
+                              # qemu single-thread + 3.4GB rsync = legitimately slow.
 POST_INSTALL_BOOT_S = 6 * 60  # 6 min: systemd brings everything up
 
 
