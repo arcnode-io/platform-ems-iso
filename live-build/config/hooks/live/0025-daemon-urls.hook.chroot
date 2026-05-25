@@ -1,0 +1,48 @@
+#!/bin/sh
+# Wire compose ↔ host-daemon connectivity.
+#
+# Runs AFTER hook 0020 (which created the postgres clusters). Three pieces:
+#
+# 1. postgres clusters → trust auth on localhost. Single-tenant appliance
+#    behind a customer firewall; password mgmt isn't worth the install-time
+#    complexity (random pw + ALTER USER + per-cluster secrets persistence).
+#
+# 2. neo4j → auth disabled via drop-in conf. Single-tenant rationale.
+#
+# 3. /etc/arcnode/daemon-urls.env — compose env_file reads this. Localhost
+#    connections, no creds, fixed at build time. Wizard never touches it.
+set -e
+
+# 1. Postgres trust auth — match BOTH local and host 127.0.0.1 entries
+for CLUSTER in timeseries document vector; do
+  HBA="/etc/postgresql/15/$CLUSTER/pg_hba.conf"
+  if [ ! -f "$HBA" ]; then
+    echo "ERROR: $HBA missing — did hook 0020 run?"
+    exit 1
+  fi
+  sed -i 's/^\(local\s\+all\s\+all\s\+\)\(md5\|peer\|scram-sha-256\)/\1trust/' "$HBA"
+  sed -i 's|^\(host\s\+all\s\+all\s\+127.0.0.1/32\s\+\)\(md5\|peer\|scram-sha-256\)|\1trust|' "$HBA"
+done
+
+# 2. Neo4j: drop-in conf disabling auth
+mkdir -p /etc/neo4j/conf.d
+cat > /etc/neo4j/conf.d/no-auth.conf <<'EOF'
+# Single-tenant appliance — auth disabled.
+dbms.security.auth_enabled=false
+EOF
+
+# 3. Daemon URLs for compose env_file
+mkdir -p /etc/arcnode
+cat > /etc/arcnode/daemon-urls.env <<'EOF'
+# Host-daemon connection URLs for compose services.
+# Baked at ISO build. Localhost-only, no auth (single-tenant appliance).
+TIMESERIES_URL=postgresql://postgres@127.0.0.1:5433/postgres
+DOCUMENT_URL=postgresql://postgres@127.0.0.1:5434/postgres
+VECTOR_URL=postgresql://postgres@127.0.0.1:5435/postgres
+GRAPH_URL=bolt://127.0.0.1:7687
+MINIO_ENDPOINT=http://127.0.0.1:9000
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+OLLAMA_URL=http://127.0.0.1:11434
+EOF
+chmod 0644 /etc/arcnode/daemon-urls.env

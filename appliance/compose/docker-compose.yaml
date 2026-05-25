@@ -19,9 +19,13 @@
 
 x-env-files: &env-files
   env_file:
-    - /etc/arcnode/config.env       # ENV, hostnames, non-secret
-    - /etc/arcnode/secrets.env      # DOCUMENT_URL, VECTOR_URL, GRAPH_URL,
-                                    # MINIO_*, OPENWEATHERMAP_API_KEY, etc.
+    # Baked at ISO build (hook 0025): daemon connection URLs to the
+    # host-side postgres/neo4j/minio/ollama. Localhost-only, no auth
+    # on the appliance (single-tenant, behind customer firewall).
+    - /etc/arcnode/daemon-urls.env
+    # Wizard-written (apply.py): API keys + admin password + anything
+    # operator-supplied. chmod 0600.
+    - /etc/arcnode/secrets.env
 
 services:
   hivemq:
