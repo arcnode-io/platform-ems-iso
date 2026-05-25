@@ -56,9 +56,12 @@ publish:
     # Cheap structural assertions FIRST (~30s) — catches the "my hook
     # silently didn't fire" class of bug before we spend 7 min booting.
     - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_contents.py -vv
-    # Then boot the ISO in qemu, drive the wizard via HTTP. Fails the job
-    # if the wizard doesn't answer, blocking the S3 upload below.
+    # Live mode: boot the ISO, drive the wizard via HTTP. ~7 min.
     - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot.py -vv
+    # Install path: boot ISO with -boot d, hit 'i' at grub, let d-i run
+    # fully-preseeded to completion, reboot from disk, assert wizard
+    # comes up from the installed system. ~20 min.
+    - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_install.py -vv
     # Upload to deterministic S3 key per commit + a stable "latest" alias.
     # Bucket policy grants s3:GetObject on iso/reference/* publicly; no
     # per-object ACL needed (would be blocked by BlockPublicAcls anyway).
