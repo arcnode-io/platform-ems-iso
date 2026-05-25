@@ -85,7 +85,10 @@ publish:
     # out at 20min). live-mode boot test above already validated wizard
     # works; install test is "extra coverage" not "blocker" until fixed.
     - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
-    - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-latest.iso"
+    # Server-side copy (s3→s3) for the "latest" alias — single CopyObject
+    # API call, bytes never leave AWS. Saves ~10min/pipeline vs re-uploading
+    # 3.4 GiB from the runner.
+    - aws s3 cp "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso" "s3://arcnode-public/iso/reference/arcnode-ems-latest.iso"
     # Install path test removed from publish — d-i in single-thread qemu
     # takes 60+ min (squashfs rsync phase). Real hardware install path
     # validated on hetzner test box; qemu install test marginal value
