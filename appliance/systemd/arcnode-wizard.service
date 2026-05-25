@@ -15,6 +15,12 @@ User=root
 WorkingDirectory=/opt/arcnode/wizard
 ExecStart=/opt/arcnode/wizard/.venv/bin/python -m src.main
 EnvironmentFile=-/etc/arcnode/wizard.env
+# Wizard apply schedules a clean SIGTERM 2s after returning the 200 to
+# the operator. After that exit, kick arcnode-compose.service — only NOW
+# is port 80 free for HMI to bind. ExecStopPost runs after process exit
+# regardless of exit status, so this fires on the wizard's normal
+# shutdown path too (harmless: compose has ConditionPathExists guard).
+ExecStopPost=-/bin/systemctl start arcnode-compose.service
 Restart=on-failure
 RestartSec=3
 

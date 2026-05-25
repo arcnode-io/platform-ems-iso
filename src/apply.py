@@ -133,16 +133,17 @@ def is_setup_complete(marker: Path = SETUP_COMPLETE_MARKER) -> bool:
 
 
 def apply_all(req: ApplyRequest) -> None:
-    """Full apply pipeline — write everything, mark done, hand off to systemd.
+    """Full apply pipeline — write everything, mark done.
 
-    kick_compose_unit failures are warn-and-continue: the wizard's
-    contract is config-on-disk + marker, not "compose stack is live."
-    Operator sees the warning in journalctl + can `systemctl start
-    arcnode-compose` manually after fixing the underlying issue.
+    DOESN'T call kick_compose_unit here anymore — the wizard process
+    still holds port 80 at this point, and arcnode-compose's HMI service
+    wants to bind 80 too. Compose would fail with "address in use."
+
+    Order is now: apply_all writes configs + marker → returns → wizard
+    schedules SIGTERM (src/app.py) → wizard exits → arcnode-wizard.service's
+    ExecStopPost fires `systemctl start arcnode-compose.service` AFTER
+    port 80 is free.
     """
     write_secrets(req.api_keys, req.admin.password)
     write_tls(req.tls)
-    # Marker BEFORE the systemctl call — arcnode-compose has
-    # ConditionPathExists=setup-complete so systemd would skip it otherwise.
     mark_setup_complete()
-    kick_compose_unit()
