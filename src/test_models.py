@@ -6,7 +6,6 @@ import pytest
 
 from src.models import (
     AdminLogin,
-    ApiKey,
     ApplyRequest,
     InstallIdentity,
     TlsConfig,
@@ -34,13 +33,9 @@ def test_install_identity_round_trip() -> None:
     assert serialized == body  # camelCase round-trips
 
 
-def test_apply_request_accepts_skipped_api_keys() -> None:
+def test_apply_request_round_trips() -> None:
     # Arrange
     body = {
-        "apiKeys": [
-            {"id": "openweathermap", "value": "abc", "skipped": False},
-            {"id": "gridstatus", "value": None, "skipped": True},
-        ],
         "tls": {"mode": "self_signed"},
         "admin": {"password": "longenoughpw"},
     }
@@ -49,9 +44,9 @@ def test_apply_request_accepts_skipped_api_keys() -> None:
     req = ApplyRequest.model_validate(body)
 
     # Assert
-    assert req.api_keys[0].value == "abc"
-    assert req.api_keys[1].skipped is True
     assert req.tls.mode == "self_signed"
+    pw = "longenoughpw"
+    assert req.admin.password == pw
 
 
 def test_admin_password_min_length_enforced() -> None:
@@ -69,7 +64,6 @@ def test_tls_mode_rejects_unknown() -> None:
 def test_apply_request_rejects_extra_fields() -> None:
     # Arrange — strict ignore=forbid: extra keys raise rather than silently drop
     body = {
-        "apiKeys": [],
         "tls": {"mode": "self_signed"},
         "admin": {"password": "longenoughpw"},
         "rogue": "field",
@@ -78,11 +72,3 @@ def test_apply_request_rejects_extra_fields() -> None:
     # Act + Assert
     with pytest.raises(ValueError, match="rogue"):
         ApplyRequest.model_validate(body)
-
-
-def test_api_key_value_can_be_none() -> None:
-    # Arrange + Act
-    k = ApiKey.model_validate({"id": "x", "skipped": True})
-
-    # Assert
-    assert k.value is None

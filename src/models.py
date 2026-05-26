@@ -40,14 +40,6 @@ class InstallIdentity(_Wire):
     rev: str
 
 
-class ApiKey(_Wire):
-    """One API-key field from the wizard's API-keys step."""
-
-    id: str  # 'openweathermap' | 'gridstatus' | ...
-    value: str | None = None  # secret material; None if skipped
-    skipped: bool = False
-
-
 class TlsConfig(_Wire):
     """Wizard's TLS step result."""
 
@@ -67,7 +59,6 @@ class AdminLogin(_Wire):
 class ApplyRequest(_Wire):
     """Full POST /setup/apply body."""
 
-    api_keys: list[ApiKey]
     tls: TlsConfig
     admin: AdminLogin
 

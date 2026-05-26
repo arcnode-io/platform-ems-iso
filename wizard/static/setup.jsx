@@ -18,31 +18,12 @@ const INSTALL_IDENTITY = (typeof window !== 'undefined' && window.INSTALL_IDENTI
   rev:         '— unknown —',
 };
 
-// ─── API keys schema (extend here as new integrations land) ──────────
-const API_KEYS = [
-  {
-    id: 'openweathermap',
-    label: 'OpenWeatherMap',
-    desc: 'Powers the Forecast agent — temperature and irradiance inputs for load and PV prediction.',
-    skippedNote: 'Forecast agent will run with site historicals only; no live weather.',
-    placeholder: 'a1b2c3d4e5f6…',
-  },
-  {
-    id: 'gridstatus',
-    label: 'GridStatus',
-    desc: 'Live ISO market data for the bidding agent — LMPs, ancillary services, congestion.',
-    skippedNote: 'Bidding agent disabled. Site stays in self-consumption mode.',
-    placeholder: 'gs_live_…',
-  },
-];
-
 // ─── Steps definition ────────────────────────────────────────────────
 const STEPS = [
   { id: 'identity', n: 1, title: 'Install identity', sub: 'Confirm the right ISO' },
-  { id: 'apikeys',  n: 2, title: 'API keys',         sub: 'Optional agent integrations' },
-  { id: 'tls',      n: 3, title: 'TLS for HMI',      sub: 'How operators connect' },
-  { id: 'admin',    n: 4, title: 'Grafana admin',    sub: 'Observability dashboards' },
-  { id: 'review',   n: 5, title: 'Review & apply',   sub: 'Read back and start' },
+  { id: 'tls',      n: 2, title: 'TLS for HMI',      sub: 'How operators connect' },
+  { id: 'admin',    n: 3, title: 'Grafana admin',    sub: 'Observability dashboards' },
+  { id: 'review',   n: 4, title: 'Review & apply',   sub: 'Read back and start' },
 ];
 
 // ─── Inline icons ────────────────────────────────────────────────────
@@ -322,49 +303,6 @@ function Step1Identity({ t }) {
   );
 }
 
-// ─── Step 2 — API keys ───────────────────────────────────────────────
-function Step2APIKeys({ t, values, onChange }) {
-  return (
-    <StepShellW t={t} title="Connect optional integrations"
-      blurb="ARCNODE agents call out to a few third-party services. Provide a key, or skip — skipped integrations disable their agent tool at runtime. You can add keys later from HMI settings.">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: SPACE[3] }}>
-        {API_KEYS.map(k => {
-          const v = values[k.id] || { key: '', skipped: false };
-          return (
-            <div key={k.id} style={{
-              background: t.panel,
-              border: `1px solid ${t.border}`,
-              borderRadius: RADIUS[3],
-              padding: `${SPACE[4]}px`,
-            }}>
-              <div style={{
-                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                gap: SPACE[4], marginBottom: 4,
-              }}>
-                <div style={{
-                  fontFamily: t.fontBody, fontSize: 14, fontWeight: 600,
-                  color: t.text,
-                }}>{k.label}</div>
-                <ToggleW t={t} on={v.skipped}
-                  onChange={(on) => onChange(k.id, { ...v, skipped: on, key: on ? '' : v.key })}
-                  label="Skip"/>
-              </div>
-              <div style={{
-                fontFamily: t.fontBody, fontSize: 12, color: t.textMid,
-                lineHeight: 1.5, marginBottom: SPACE[3],
-              }}>{k.desc}</div>
-              <TextInputW t={t} value={v.key}
-                onChange={(val) => onChange(k.id, { ...v, key: val })}
-                placeholder={k.placeholder} disabled={v.skipped} mono/>
-              {v.skipped && <HelperW t={t}>{k.skippedNote}</HelperW>}
-            </div>
-          );
-        })}
-      </div>
-    </StepShellW>
-  );
-}
-
 function ToggleW({ t, on, onChange, label }) {
   return (
     <div onClick={() => onChange(!on)} style={{
@@ -602,15 +540,6 @@ function Step5Review({ t, values, applyState, onApply, onJump }) {
   );
 }
 function ReviewSummary({ t, values, onJump }) {
-  const apiSummary = API_KEYS.map(k => {
-    const v = values.apiKeys[k.id] || { key: '', skipped: false };
-    return {
-      label: k.label,
-      value: v.skipped ? <span style={{ color: t.textSoft }}>skipped</span>
-            : (v.key ? <span style={{ fontFamily: t.fontLabel, color: t.text }}>{maskKey(v.key)}</span>
-                     : <span style={{ color: t.textSoft }}>not provided</span>),
-    };
-  });
   const tlsSummary = values.tls.mode === 'selfsigned'
     ? 'Self-signed (auto-generated, 3-year)'
     : `Uploaded · ${values.tls.cert || '?'} + ${values.tls.key || '?'}`;
@@ -623,8 +552,6 @@ function ReviewSummary({ t, values, onJump }) {
           ['Market',   INSTALL_IDENTITY.market],
           ['Order',    INSTALL_IDENTITY.orderId],
         ]}/>
-      <ReviewCard t={t} title="API keys" onEdit={() => onJump('apikeys')}
-        rows={apiSummary.map(s => [s.label, s.value])}/>
       <ReviewCard t={t} title="TLS" onEdit={() => onJump('tls')}
         rows={[ ['Mode', tlsSummary] ]}/>
       <ReviewCard t={t} title="Grafana admin" onEdit={() => onJump('admin')}
@@ -634,10 +561,6 @@ function ReviewSummary({ t, values, onJump }) {
         ]}/>
     </div>
   );
-}
-function maskKey(k) {
-  if (k.length <= 6) return '•'.repeat(k.length);
-  return k.slice(0, 3) + '…' + k.slice(-3);
 }
 function ReviewCard({ t, title, rows, onEdit }) {
   return (
@@ -1013,10 +936,6 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
 
   // form values
   const [values, setValues] = useStateW({
-    apiKeys: {
-      openweathermap: { key: 'a1b2c3d4e5f6g7h8', skipped: false },
-      gridstatus:     { key: '', skipped: true },
-    },
     tls: { mode: 'selfsigned', cert: null, key: null },
     admin: { password: 'correct-horse-battery-staple', confirm: 'correct-horse-battery-staple' },
   });
@@ -1065,11 +984,6 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
   const onApply = async () => {
     setApplyState('applying');
     const body = {
-      apiKeys: Object.entries(values.apiKeys).map(([id, v]) => ({
-        id,
-        value: v.skipped ? null : v.key,
-        skipped: !!v.skipped,
-      })),
       tls: {
         mode: values.tls.mode === 'selfsigned' ? 'self_signed' : 'upload',
         certPem: values.tls.cert,
@@ -1098,7 +1012,6 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
   const onJump = (id) => setCurrent(id);
   const onRecheck = () => setHwKey(k => k + 1);
 
-  const setAPIKey   = (id, v) => setValues(s => ({ ...s, apiKeys: { ...s.apiKeys, [id]: v } }));
   const setTLSMode  = (m)     => setValues(s => ({ ...s, tls: { ...s.tls, mode: m } }));
   const setCert     = (n)     => setValues(s => ({ ...s, tls: { ...s.tls, cert: n } }));
   const setTLSKey   = (n)     => setValues(s => ({ ...s, tls: { ...s.tls, key: n } }));
@@ -1123,7 +1036,6 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
         }}>
           {current === 'preflight' && <HardwareCheckBody key={hwKey} t={t} scenario={hwScenario} onRecheck={onRecheck}/>}
           {current === 'identity' && <Step1Identity t={t}/>}
-          {current === 'apikeys'  && <Step2APIKeys  t={t} values={values.apiKeys} onChange={setAPIKey}/>}
           {current === 'tls'      && <Step3TLS      t={t} mode={values.tls.mode} onMode={setTLSMode}
                                                     certName={values.tls.cert} keyName={values.tls.key}
                                                     onCert={setCert} onKey={setTLSKey}/>}

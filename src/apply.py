@@ -1,7 +1,7 @@
 """Apply the wizard's submitted config to the appliance filesystem.
 
 Writes:
-  - /etc/arcnode/secrets.env       (API keys + admin creds)
+  - /etc/arcnode/secrets.env       (Grafana admin pw — only secret today)
   - /etc/arcnode/tls/server.{crt,key} (uploaded cert OR generated self-signed)
   - /var/lib/arcnode/setup-complete (marker — disables the wizard on next boot)
 
@@ -16,38 +16,27 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from src.models import ApiKey, ApplyRequest, TlsConfig
+from src.models import ApplyRequest, TlsConfig
 
 ETC_DIR = Path("/etc/arcnode")
 TLS_DIR = ETC_DIR / "tls"
 SECRETS_PATH = ETC_DIR / "secrets.env"
 SETUP_COMPLETE_MARKER = Path("/var/lib/arcnode/setup-complete")
-# Env-var name per API key id. Drives what the apps read.
-API_KEY_ENV_NAMES: dict[str, str] = {
-    "openweathermap": "OPENWEATHERMAP_API_KEY",
-    "gridstatus": "GRIDSTATUS_API_KEY",
-}
 
 
 def write_secrets(
-    api_keys: list[ApiKey],
     admin_password: str,
     target: Path = SECRETS_PATH,
 ) -> None:
-    """Render API keys + admin pw into the appliance secrets.env file.
+    """Render the appliance secrets.env file.
 
     Format: KEY=value, one per line. compose's env_file directive reads
-    this file at container start; same shape as cloud variants.
+    this file at container start. Today only GF_ADMIN_PASSWORD lives
+    here; external API keys removed (appliance is airgapped, those
+    tools don't fire).
     """
-    lines: list[str] = []
-    for key in api_keys:
-        env = API_KEY_ENV_NAMES.get(key.id)
-        if env is None or key.skipped or not key.value:
-            continue
-        lines.append(f"{env}={key.value}")
-    lines.append(f"GF_ADMIN_PASSWORD={admin_password}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(lines) + "\n")
+    target.write_text(f"GF_ADMIN_PASSWORD={admin_password}\n")
     target.chmod(0o600)
 
 
@@ -144,6 +133,6 @@ def apply_all(req: ApplyRequest) -> None:
     ExecStopPost fires `systemctl start arcnode-compose.service` AFTER
     port 80 is free.
     """
-    write_secrets(req.api_keys, req.admin.password)
+    write_secrets(req.admin.password)
     write_tls(req.tls)
     mark_setup_complete()

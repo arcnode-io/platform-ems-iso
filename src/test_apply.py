@@ -14,56 +14,21 @@ from src.apply import (
     write_secrets,
     write_tls,
 )
-from src.models import ApiKey, TlsConfig
+from src.models import TlsConfig
 
 
-def test_write_secrets_renders_env_lines(tmp_path: Path) -> None:
+def test_write_secrets_writes_admin_password(tmp_path: Path) -> None:
     # Arrange
-    keys = [
-        ApiKey(id="openweathermap", value="ow-key", skipped=False),
-        ApiKey(id="gridstatus", value="gs-key", skipped=False),
-    ]
     target = tmp_path / "secrets.env"
 
     # Act
-    write_secrets(keys, "adminpw", target=target)
+    write_secrets("adminpw", target=target)
 
     # Assert
     content = target.read_text()
-    assert "OPENWEATHERMAP_API_KEY=ow-key" in content
-    assert "GRIDSTATUS_API_KEY=gs-key" in content
-    assert "GF_ADMIN_PASSWORD=adminpw" in content
+    assert content.strip() == "GF_ADMIN_PASSWORD=adminpw"
     # Reason: secrets.env carries plaintext creds — must be 0600 not world-readable
     assert (target.stat().st_mode & 0o777) == 0o600
-
-
-def test_write_secrets_skips_skipped_keys(tmp_path: Path) -> None:
-    # Arrange — gridstatus is skipped, should NOT appear in the file
-    keys = [
-        ApiKey(id="openweathermap", value="ow-key", skipped=False),
-        ApiKey(id="gridstatus", value=None, skipped=True),
-    ]
-    target = tmp_path / "secrets.env"
-
-    # Act
-    write_secrets(keys, "adminpw", target=target)
-
-    # Assert
-    content = target.read_text()
-    assert "OPENWEATHERMAP_API_KEY=ow-key" in content
-    assert "GRIDSTATUS" not in content
-
-
-def test_write_secrets_skips_unknown_key_ids(tmp_path: Path) -> None:
-    # Arrange — `mystery` isn't in API_KEY_ENV_NAMES; silently dropped
-    keys = [ApiKey(id="mystery", value="x", skipped=False)]
-    target = tmp_path / "secrets.env"
-
-    # Act
-    write_secrets(keys, "pw", target=target)
-
-    # Assert
-    assert target.read_text().strip() == "GF_ADMIN_PASSWORD=pw"
 
 
 def test_write_tls_upload_writes_both_pem(tmp_path: Path) -> None:

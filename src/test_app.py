@@ -116,9 +116,6 @@ def test_apply_calls_pipeline_and_returns_redirect(
     )
     client = TestClient(app)
     payload = {
-        "apiKeys": [
-            {"id": "openweathermap", "value": "k1", "skipped": False},
-        ],
         "tls": {"mode": "self_signed", "certPem": None, "keyPem": None},
         "admin": {"password": "long-enough-pw"},
     }
@@ -143,7 +140,6 @@ def test_routes_return_410_when_setup_already_complete(
     )
     client = TestClient(app)
     valid_apply = {
-        "apiKeys": [],
         "tls": {"mode": "self_signed"},
         "admin": {"password": "long-enough-pw"},
     }

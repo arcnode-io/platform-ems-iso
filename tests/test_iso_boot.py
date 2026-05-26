@@ -63,7 +63,6 @@ def test_wizard_apply_accepts_valid_payload(booted_iso: str) -> None:
     """
     # Arrange
     payload = {
-        "apiKeys": [],
         "tls": {"mode": "self_signed"},
         "admin": {"password": "demo-password-1"},
     }

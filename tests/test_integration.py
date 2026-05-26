@@ -51,7 +51,6 @@ def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
     apply_resp = client.post(
         "/setup/apply",
         json={
-            "apiKeys": [],
             "tls": {"mode": "self_signed"},
             "admin": {"password": "long-enough-pw"},
         },
