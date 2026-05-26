@@ -35,11 +35,22 @@
 <script type="text/babel" src="/static/setup.jsx"></script>
 
 <script type="text/babel">
-  // Mount the designer's SetupWizardBody against the SOVEREIGN theme.
-  // tokens.jsx exposes window.SOVEREIGN; setup.jsx exposes window.SetupWizardBody.
-  ReactDOM.createRoot(document.getElementById('root')).render(
-    <window.SetupWizardBody t={window.SOVEREIGN}/>
-  );
+  // Wrap SetupWizardBody in a frame that owns the dark/light theme state.
+  // tokens.jsx exposes window.SOVEREIGN (dark) + window.SOLARPUNK (light).
+  // Designer's HeaderW renders the toggle when onToggleTheme is passed in.
+  const SOVEREIGN_BRAND = {
+    ...window.SOVEREIGN,
+    accent: '#f5a623', accentDim: '#b87a1a', accentFaint: '#1a1200',
+  };
+  function App() {
+    const [isDark, setIsDark] = React.useState(true);
+    const t = isDark ? SOVEREIGN_BRAND : window.SOLARPUNK;
+    return (
+      <window.SetupWizardBody t={t} isDark={isDark}
+        onToggleTheme={() => setIsDark(d => !d)}/>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>

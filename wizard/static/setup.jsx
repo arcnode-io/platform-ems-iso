@@ -814,8 +814,39 @@ function StepShellW({ t, title, blurb, children }) {
   );
 }
 
+// ─── Theme toggle ───────────────────────────────────────────────────
+function ThemeToggleW({ t, isDark, onToggle }) {
+  return (
+    <button onClick={onToggle}
+      title={isDark ? 'Switch to light' : 'Switch to dark'}
+      style={{
+        appearance: 'none', cursor: 'pointer',
+        width: 36, height: 36, padding: 0,
+        background: t.surface,
+        border: `1px solid ${t.border}`,
+        borderRadius: RADIUS[2],
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        color: t.textMid,
+      }}>
+      {isDark
+        ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.text}
+               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2 V4 M12 20 V22 M4.93 4.93 L6.34 6.34 M17.66 17.66 L19.07 19.07 M2 12 H4 M20 12 H22 M4.93 19.07 L6.34 17.66 M17.66 6.34 L19.07 4.93"/>
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.text}
+               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12.8 A9 9 0 1 1 11.2 3 a7 7 0 0 0 9.8 9.8 Z"/>
+          </svg>
+        )}
+    </button>
+  );
+}
+
 // ─── Top header ─────────────────────────────────────────────────────
-function HeaderW({ t, current }) {
+function HeaderW({ t, current, isDark, onToggleTheme }) {
   const isSov = t.name === 'sovereign';
   const idx = STEPS.findIndex(s => s.id === current);
   const isPreflight = current === 'preflight';
@@ -857,6 +888,9 @@ function HeaderW({ t, current }) {
           ? 'Preflight'
           : <>Step <span style={{ color: t.text }}>{idx + 1}</span> of {STEPS.length}</>}
       </div>
+      {onToggleTheme && (
+        <ThemeToggleW t={t} isDark={isDark} onToggle={onToggleTheme}/>
+      )}
     </div>
   );
 }
@@ -970,7 +1004,7 @@ function primaryBtnStyle(t, disabled) {
 }
 
 // ─── Main wizard body ───────────────────────────────────────────────
-function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
+function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDark, onToggleTheme }) {
   const [current, setCurrent] = useStateW(initialStep || 'preflight');
   const [completed, setCompleted] = useStateW(new Set());
   const [applyState, setApplyState] = useStateW(initialApply || 'idle');
@@ -1078,7 +1112,7 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
       fontFamily: t.fontBody, color: t.text,
       minHeight: '100%',
     }}>
-      <HeaderW t={t} current={current}/>
+      <HeaderW t={t} current={current} isDark={isDark} onToggleTheme={onToggleTheme}/>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <StepRailW t={t} current={current} completed={completed} onJump={onJump}/>
         <div style={{
