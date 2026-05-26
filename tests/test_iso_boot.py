@@ -6,6 +6,8 @@ Skipped unless ARCNODE_ISO_PATH is set. CI's publish stage exports it after
 
 from __future__ import annotations
 
+import json
+
 import httpx
 
 from tests.iso_fixtures import booted_iso, iso_path  # pytest fixture imports
@@ -55,11 +57,13 @@ def test_hardware_endpoint_returns_real_probe(booted_iso: str) -> None:
 
 
 def test_wizard_apply_accepts_valid_payload(booted_iso: str) -> None:
-    """POST /setup/apply with a valid payload returns 200 + redirect.
+    """POST /setup/apply with a valid payload streams a text/event-stream.
 
-    Doesn't assert side effects on the appliance (writing /etc/arcnode/* +
-    kicking arcnode-compose) — those need root inspection inside the VM.
-    Asserting the HTTP contract is the integration-test scope.
+    Apply runs ollama-pull + docker-compose-pull inside qemu where neither
+    is available; the stream will yield a `phase: error` frame. That's
+    fine — this test asserts the HTTP contract (endpoint accepts the
+    payload + streams SSE), not the success of the apply pipeline. End-
+    to-end success lives in the real-hardware install test.
     """
     # Arrange
     payload = {
@@ -68,10 +72,13 @@ def test_wizard_apply_accepts_valid_payload(booted_iso: str) -> None:
     }
 
     # Act
-    resp = httpx.post(f"{booted_iso}/setup/apply", json=payload, timeout=60.0)
+    resp = httpx.post(f"{booted_iso}/setup/apply", json=payload, timeout=120.0)
 
     # Assert
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["ok"] is True
-    assert "redirect" in body
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    frames = [f for f in resp.text.split("\n\n") if f.startswith("data: ")]
+    assert len(frames) >= 1
+    # First frame is the config-start event — proves the stream started
+    first = json.loads(frames[0][len("data: ") :])
+    assert first["phase"] == "config"
