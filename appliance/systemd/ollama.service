@@ -12,6 +12,9 @@ Group=ollama
 # OLLAMA_MODELS so first request hits a warm cache, not a download.
 Environment=OLLAMA_MODELS=/opt/arcnode/ollama/models
 Environment=OLLAMA_HOST=127.0.0.1:11434
+# Airgapped: silence the daemon's GitHub-release update probe + any
+# usage telemetry. Daemon still runs cached models; just no egress.
+Environment=OLLAMA_NOANALYTICS=1
 ExecStart=/usr/local/bin/ollama serve
 Restart=on-failure
 RestartSec=5
