@@ -120,7 +120,7 @@ def test_apply_calls_pipeline_and_returns_redirect(
             {"id": "openweathermap", "value": "k1", "skipped": False},
         ],
         "tls": {"mode": "self_signed", "certPem": None, "keyPem": None},
-        "admin": {"username": "admin", "password": "long-enough-pw"},
+        "admin": {"password": "long-enough-pw"},
     }
 
     # Act
@@ -145,7 +145,7 @@ def test_routes_return_410_when_setup_already_complete(
     valid_apply = {
         "apiKeys": [],
         "tls": {"mode": "self_signed"},
-        "admin": {"username": "admin", "password": "long-enough-pw"},
+        "admin": {"password": "long-enough-pw"},
     }
 
     # Act + Assert — every route 410s; no path is reachable post-setup

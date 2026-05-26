@@ -42,7 +42,7 @@ def test_apply_request_accepts_skipped_api_keys() -> None:
             {"id": "gridstatus", "value": None, "skipped": True},
         ],
         "tls": {"mode": "self_signed"},
-        "admin": {"username": "admin", "password": "longenoughpw"},
+        "admin": {"password": "longenoughpw"},
     }
 
     # Act
@@ -57,7 +57,7 @@ def test_apply_request_accepts_skipped_api_keys() -> None:
 def test_admin_password_min_length_enforced() -> None:
     # Arrange + Act + Assert — pydantic raises on <8 char password
     with pytest.raises(ValueError, match="at least 8"):
-        AdminLogin.model_validate({"username": "admin", "password": "short"})
+        AdminLogin.model_validate({"password": "short"})
 
 
 def test_tls_mode_rejects_unknown() -> None:
@@ -71,7 +71,7 @@ def test_apply_request_rejects_extra_fields() -> None:
     body = {
         "apiKeys": [],
         "tls": {"mode": "self_signed"},
-        "admin": {"username": "admin", "password": "longenoughpw"},
+        "admin": {"password": "longenoughpw"},
         "rogue": "field",
     }
 

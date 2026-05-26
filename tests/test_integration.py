@@ -53,7 +53,7 @@ def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
         json={
             "apiKeys": [],
             "tls": {"mode": "self_signed"},
-            "admin": {"username": "admin", "password": "long-enough-pw"},
+            "admin": {"password": "long-enough-pw"},
         },
     )
     assert apply_resp.status_code == 200

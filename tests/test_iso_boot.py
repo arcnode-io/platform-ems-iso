@@ -65,7 +65,7 @@ def test_wizard_apply_accepts_valid_payload(booted_iso: str) -> None:
     payload = {
         "apiKeys": [],
         "tls": {"mode": "self_signed"},
-        "admin": {"username": "admin", "password": "demo-password-1"},
+        "admin": {"password": "demo-password-1"},
     }
 
     # Act

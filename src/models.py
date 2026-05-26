@@ -57,9 +57,10 @@ class TlsConfig(_Wire):
 
 
 class AdminLogin(_Wire):
-    """HMI admin credentials chosen at the wizard's final step."""
+    """Grafana admin password chosen in the wizard. Username hardcoded to
+    'admin' downstream (grafana convention) — only the password rides
+    the wire."""
 
-    username: str = Field(min_length=1)
     password: str = Field(min_length=8)  # strength meter is client-side advice
 
 

@@ -41,7 +41,7 @@ const STEPS = [
   { id: 'identity', n: 1, title: 'Install identity', sub: 'Confirm the right ISO' },
   { id: 'apikeys',  n: 2, title: 'API keys',         sub: 'Optional agent integrations' },
   { id: 'tls',      n: 3, title: 'TLS for HMI',      sub: 'How operators connect' },
-  { id: 'admin',    n: 4, title: 'Admin login',      sub: 'First HMI user' },
+  { id: 'admin',    n: 4, title: 'Grafana admin',    sub: 'Observability dashboards' },
   { id: 'review',   n: 5, title: 'Review & apply',   sub: 'Read back and start' },
 ];
 
@@ -506,13 +506,13 @@ function FileFieldW({ t, label, ext, filename, onPick }) {
   );
 }
 
-// ─── Step 4 — HMI admin login ────────────────────────────────────────
-function Step4Admin({ t, username, password, confirm, onU, onP, onC }) {
+// ─── Step 4 — Grafana admin password ─────────────────────────────────
+function Step4Admin({ t, password, confirm, onP, onC }) {
   const strength = passwordStrength(password);
   const mismatch = confirm.length > 0 && confirm !== password;
   return (
-    <StepShellW t={t} title="Create the HMI admin"
-      blurb="This is the first sign-in for the HMI itself. Separate from the system root password you set during Debian install — that one stays for SSH and local console only.">
+    <StepShellW t={t} title="Grafana admin password"
+      blurb="Sign-in for Grafana, the observability dashboards. Username is fixed at admin. Separate from the system root password you set during Debian install — that one stays for SSH and local console only.">
       <div style={{
         background: t.panel,
         border: `1px solid ${t.border}`,
@@ -520,11 +520,6 @@ function Step4Admin({ t, username, password, confirm, onU, onP, onC }) {
         padding: SPACE[5],
         display: 'flex', flexDirection: 'column', gap: SPACE[4],
       }}>
-        <div>
-          <FieldLabelW t={t}>Username</FieldLabelW>
-          <TextInputW t={t} value={username} onChange={onU} mono/>
-          <HelperW t={t}>Editable. We default to <code style={{ color: t.text }}>admin</code> because that's what most operators expect.</HelperW>
-        </div>
         <div>
           <FieldLabelW t={t} required>Password</FieldLabelW>
           <TextInputW t={t} type="password" value={password} onChange={onP} placeholder="at least 12 characters"/>
@@ -632,9 +627,9 @@ function ReviewSummary({ t, values, onJump }) {
         rows={apiSummary.map(s => [s.label, s.value])}/>
       <ReviewCard t={t} title="TLS" onEdit={() => onJump('tls')}
         rows={[ ['Mode', tlsSummary] ]}/>
-      <ReviewCard t={t} title="Admin login" onEdit={() => onJump('admin')}
+      <ReviewCard t={t} title="Grafana admin" onEdit={() => onJump('admin')}
         rows={[
-          ['Username', values.admin.username || 'admin'],
+          ['Username', 'admin'],
           ['Password', '•••••••••• (set)'],
         ]}/>
     </div>
@@ -989,7 +984,7 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
       gridstatus:     { key: '', skipped: true },
     },
     tls: { mode: 'selfsigned', cert: null, key: null },
-    admin: { username: 'admin', password: 'correct-horse-battery-staple', confirm: 'correct-horse-battery-staple' },
+    admin: { password: 'correct-horse-battery-staple', confirm: 'correct-horse-battery-staple' },
   });
 
   // react to externally-injected state changes (from tweaks)
@@ -1047,7 +1042,6 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
         keyPem:  values.tls.key,
       },
       admin: {
-        username: values.admin.username,
         password: values.admin.password,
       },
     };
@@ -1074,7 +1068,6 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
   const setTLSMode  = (m)     => setValues(s => ({ ...s, tls: { ...s.tls, mode: m } }));
   const setCert     = (n)     => setValues(s => ({ ...s, tls: { ...s.tls, cert: n } }));
   const setTLSKey   = (n)     => setValues(s => ({ ...s, tls: { ...s.tls, key: n } }));
-  const setUsername = (v)     => setValues(s => ({ ...s, admin: { ...s.admin, username: v } }));
   const setPassword = (v)     => setValues(s => ({ ...s, admin: { ...s.admin, password: v } }));
   const setConfirm  = (v)     => setValues(s => ({ ...s, admin: { ...s.admin, confirm: v } }));
 
@@ -1100,10 +1093,9 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario }) {
           {current === 'tls'      && <Step3TLS      t={t} mode={values.tls.mode} onMode={setTLSMode}
                                                     certName={values.tls.cert} keyName={values.tls.key}
                                                     onCert={setCert} onKey={setTLSKey}/>}
-          {current === 'admin'    && <Step4Admin    t={t} username={values.admin.username}
-                                                    password={values.admin.password}
+          {current === 'admin'    && <Step4Admin    t={t} password={values.admin.password}
                                                     confirm={values.admin.confirm}
-                                                    onU={setUsername} onP={setPassword} onC={setConfirm}/>}
+                                                    onP={setPassword} onC={setConfirm}/>}
           {current === 'review'   && <Step5Review   t={t} values={values}
                                                     applyState={applyState}
                                                     onApply={onApply} onJump={onJump}/>}
