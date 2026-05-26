@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from src.ai_models import AiModels
 from src.app import create_app
+from src.models import ApplyRequest
+
+
+def _fake_stream(_req: ApplyRequest, _models: AiModels) -> Iterator[dict]:
+    yield {"phase": "done", "redirect": "/"}
+
+
+def _fake_models() -> AiModels:
+    return AiModels(chat="a:1", code="b:2", embedder="c:3")
 
 
 def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
@@ -31,7 +42,8 @@ def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
     app = create_app(
         identity_path=identity,
         setup_marker=marker,
-        apply_fn=lambda _: None,  # don't actually touch disk + systemd
+        stream_fn=_fake_stream,
+        models_fn=_fake_models,
         exit_after_apply=False,  # don't kill the test process
     )
     client = TestClient(app)
@@ -56,4 +68,5 @@ def test_first_boot_walks_identity_to_apply(tmp_path: Path) -> None:
         },
     )
     assert apply_resp.status_code == 200
-    assert apply_resp.json() == {"ok": True, "redirect": "/"}
+    assert apply_resp.headers["content-type"].startswith("text/event-stream")
+    assert '"phase": "done"' in apply_resp.text

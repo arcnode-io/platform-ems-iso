@@ -8,20 +8,22 @@ Three routes:
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import signal
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from src import apply, hardware, identity
-from src.models import ApplyRequest, ApplyResult
+from src import ai_models, apply, apply_stream, hardware, identity
+from src.models import ApplyRequest
 
 WIZARD_DIR = Path(__file__).resolve().parent.parent / "wizard"
 TEMPLATES_DIR = WIZARD_DIR / "templates"
@@ -32,7 +34,8 @@ def create_app(
     *,
     identity_path: Path = identity.DEFAULT_IDENTITY_PATH,
     setup_marker: Path = apply.SETUP_COMPLETE_MARKER,
-    apply_fn: Callable[[ApplyRequest], None] = apply.apply_all,
+    stream_fn: Callable[..., Iterator[dict]] = apply_stream.apply_stream,
+    models_fn: Callable[[], ai_models.AiModels] = ai_models.load_ai_models,
     exit_after_apply: bool = True,
 ) -> FastAPI:
     """Wire the wizard routes. DI'd so tests can swap paths + the apply pipeline."""
@@ -74,18 +77,47 @@ def create_app(
         return JSONResponse(hardware.probe().model_dump(by_alias=True))
 
     @app.post("/setup/apply")
-    def post_apply(req: ApplyRequest) -> ApplyResult:
+    def post_apply(req: ApplyRequest) -> StreamingResponse:
         _guard_complete()
-        apply_fn(req)
-        if exit_after_apply:
-            # Schedule self-shutdown so port 80 frees for the HMI compose
-            # service to bind. systemd's ExecStopPost on arcnode-wizard.service
-            # kicks arcnode-compose.service once we exit. 2s delay so the
-            # ApplyResult response actually flushes to the operator first.
-            threading.Thread(target=_shutdown_after, args=(2.0,), daemon=True).start()
-        return ApplyResult(ok=True, redirect="/")
+        return _stream_apply(req, stream_fn, models_fn, exit_after_apply)
 
     return app
+
+
+def _stream_apply(
+    req: ApplyRequest,
+    stream_fn: Callable[..., Iterator[dict]],
+    models_fn: Callable[[], ai_models.AiModels],
+    exit_after_apply: bool,
+) -> StreamingResponse:
+    """SSE stream of apply progress.
+
+    Frontend reads via fetch + ReadableStream (NOT EventSource —
+    EventSource is GET-only and we need the JSON body for pydantic
+    validation). Each event = one `data: <json>\\n\\n` frame.
+    """
+    models = models_fn()
+
+    def event_source() -> Iterator[bytes]:
+        try:
+            for ev in stream_fn(req, models):
+                yield f"data: {json.dumps(ev)}\n\n".encode()
+        except Exception as exc:
+            logging.exception("apply_stream failed")
+            err = json.dumps({"phase": "error", "message": str(exc)})
+            yield f"data: {err}\n\n".encode()
+            return
+        if exit_after_apply:
+            # 2s delay so the final SSE frame flushes before SIGTERM
+            # tears the connection down. ExecStopPost then runs
+            # arcnode-compose.service with port 80 free.
+            threading.Thread(
+                target=_shutdown_after,
+                args=(2.0,),
+                daemon=True,
+            ).start()
+
+    return StreamingResponse(event_source(), media_type="text/event-stream")
 
 
 def _shutdown_after(delay_s: float) -> None:

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
+from src.ai_models import AiModels
 from src.app import create_app
+from src.models import ApplyRequest
 
 
 @pytest.fixture
@@ -103,15 +105,21 @@ def test_identity_endpoint_returns_camelcase_json(
     assert body["isoVersion"] == "1.0.0"
 
 
-def test_apply_calls_pipeline_and_returns_redirect(
-    baked_identity: Path, marker: Path
-) -> None:
-    # Arrange — fake apply_fn so we don't actually touch /etc or docker
-    fake_apply = MagicMock()
+def test_apply_streams_phase_events(baked_identity: Path, marker: Path) -> None:
+    # Arrange — fake stream_fn so we don't actually pull ollama / docker
+    def fake_stream(_req: ApplyRequest, _models: AiModels) -> Iterator[dict]:
+        yield {"phase": "config", "status": "start"}
+        yield {"phase": "config", "status": "done"}
+        yield {"phase": "done", "redirect": "/"}
+
+    def fake_models() -> AiModels:
+        return AiModels(chat="a:1", code="b:2", embedder="c:3")
+
     app = create_app(
         identity_path=baked_identity,
         setup_marker=marker,
-        apply_fn=fake_apply,
+        stream_fn=fake_stream,
+        models_fn=fake_models,
         exit_after_apply=False,
     )
     client = TestClient(app)
@@ -123,10 +131,13 @@ def test_apply_calls_pipeline_and_returns_redirect(
     # Act
     resp = client.post("/setup/apply", json=payload)
 
-    # Assert
+    # Assert — SSE response carries the events as `data: <json>\n\n` frames
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True, "redirect": "/"}
-    assert fake_apply.call_count == 1
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    frames = [f for f in resp.text.split("\n\n") if f]
+    assert len(frames) == 3
+    assert '"phase": "config"' in frames[0]
+    assert '"phase": "done"' in frames[-1]
 
 
 def test_routes_return_410_when_setup_already_complete(
