@@ -9,6 +9,7 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "jinja2>=3.1.4",
     "python-multipart>=0.0.12",  # TLS cert/key upload (multipart form)
+    "httpx>=0.28.1",              # streaming ollama pull during apply
 ]
 
 [tool.uv]
@@ -30,7 +31,6 @@ dev = [
     "pip>=26.1",  # CVE-2026-6357
     "ty>=0.0.18",
     "types-pyyaml>=6.0",
-    "httpx>=0.28.1",
     "pexpect>=4.9.0",
 ]
 
