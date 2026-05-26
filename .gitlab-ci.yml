@@ -3,15 +3,6 @@ stages:
   - publish
   - mirror
 
-# Why GIT_STRATEGY=clone everywhere: publish runs `sudo lb build` which
-# leaves root-owned files in chroot/, binary/, config/hooks/normal/, etc.
-# `git fetch`'s untracked-file cleanup can't remove them as gitlab-runner,
-# so a fetch-strategy pipeline dies in checks before any user script gets
-# to chown them back. A fresh clone sidesteps the entire problem; ~5-10s
-# overhead. publish also after_scripts a chown for tidiness.
-variables:
-  GIT_STRATEGY: clone
-
 checks:
   stage: check
   script:
@@ -30,18 +21,15 @@ checks:
 
 publish:
   stage: publish
-  # lb build ~14m + live boot tests ~7m + S3 upload ~10m + install test ~60m
-  # = ~91m worst case. Bump to 2h for headroom.
-  timeout: 2h
-  # Always runs, even on timeout/cancel. Nuke ENTIRE live-build/ — lb
-  # chowns half its subdirs (chroot, binary, cache, .build, AND config/*
-  # generated subdirs like includes.chroot_before_packages, bootloaders,
-  # archives) to root. Per-dir rm misses some. GIT_STRATEGY=clone next
-  # pipeline restores all source under live-build/.
-  after_script:
-    - sudo rm -rf live-build 2>/dev/null || true
+  # lb build inside docker ~14m + tests ~1m + s3 cp ~30s ≈ 16m typical.
+  # 1h leaves headroom; the old "leave the workspace dirty for an hour"
+  # failure mode is gone — lb build lives inside the container's
+  # writable layer, host workspace stays gitlab-runner-owned forever.
+  timeout: 1h
   script:
-    # Populate includes.chroot — appliance/* lands at well-known paths
+    # Phase 1 — populate live-build/config/includes.chroot/* on the HOST
+    # (no privileges; gitlab-runner-owned). Docker build then copies
+    # the populated tree into the image at build time.
     - mkdir -p live-build/config/includes.chroot/etc/systemd/system
     - cp appliance/systemd/*.service live-build/config/includes.chroot/etc/systemd/system/
     - mkdir -p live-build/config/includes.chroot/etc/arcnode/compose
@@ -59,41 +47,43 @@ publish:
     # telemetry-writer container).
     - mkdir -p live-build/config/includes.chroot/etc/arcnode/init-scripts
     - cp appliance/init-scripts/* live-build/config/includes.chroot/etc/arcnode/init-scripts/
-    - mkdir -p live-build/config/includes.chroot/etc/arcnode
     - cp live-build/config/install.json.reference live-build/config/includes.chroot/etc/arcnode/install.json
     - mkdir -p live-build/config/includes.chroot/opt/arcnode/wizard
     # Copy wizard/ subdir too — src/app.py resolves STATIC_DIR/TEMPLATES_DIR
     # via Path(__file__).parent.parent / "wizard", so the layout under
     # /opt/arcnode/wizard/ must include the wizard/ subdir alongside src/.
     - cp -r src wizard pyproject.toml uv.lock cfg.yml live-build/config/includes.chroot/opt/arcnode/wizard/
-    # Build
-    - cd live-build
-    - sudo lb clean --purge
-    - sudo lb config
-    - sudo lb build
-    - cd ..
-    - ISO=$(ls live-build/arcnode-ems-*.iso | head -1)
-    - test -n "$ISO" || (echo "no ISO produced"; exit 1)
-    # Cheap structural assertions FIRST (~30s) — catches the "my hook
-    # silently didn't fire" class of bug before we spend 7 min booting.
+
+    # Phase 2 — build ISO inside a container. Chroot is root-owned but
+    # confined to the container's writable layer; host workspace is
+    # never written to with privilege.
+    - docker build -t arcnode-iso-builder -f Dockerfile.iso-builder .
+    # --privileged: debootstrap inside the chroot mounts /proc + others.
+    # No --rm: container persists post-exit so docker cp can pull the ISO.
+    - docker run --privileged --name "iso-build-${CI_JOB_ID}" arcnode-iso-builder
+    # Pull the renamed ISO out of the stopped container, then nuke it.
+    - docker cp "iso-build-${CI_JOB_ID}:/build/output.iso" "live-build/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
+    - docker rm "iso-build-${CI_JOB_ID}"
+    - ISO="live-build/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
+    - test -s "$ISO" || (echo "ISO empty / missing"; exit 1)
+
+    # Phase 3 — cheap structural assertions (~30s). Catches "my hook
+    # silently didn't fire" before spending 7 min booting.
     - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_contents.py -vv
-    # Live mode: boot the ISO, drive the wizard via HTTP. ~7 min.
+
+    # Phase 4 — live-mode boot test. ~7 min: boots the ISO in qemu,
+    # drives the wizard via HTTP.
     - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot.py -vv
-    # Upload to deterministic S3 key per commit + stable "latest" alias.
+
+    # Phase 5 — S3 upload (sha-tagged + server-side copy to latest alias).
     # Bucket policy grants s3:GetObject on iso/reference/* publicly.
-    # NOTE: upload moved BEFORE install test (currently flaky — d-i times
-    # out at 20min). live-mode boot test above already validated wizard
-    # works; install test is "extra coverage" not "blocker" until fixed.
     - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
-    # Server-side copy (s3→s3) for the "latest" alias — single CopyObject
-    # API call, bytes never leave AWS. Saves ~10min/pipeline vs re-uploading
-    # 3.4 GiB from the runner.
+    # s3→s3 CopyObject; bytes never leave AWS. Saves ~10min/pipeline.
     - aws s3 cp "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso" "s3://arcnode-public/iso/reference/arcnode-ems-latest.iso"
-    # Install path test removed from publish — d-i in single-thread qemu
-    # takes 60+ min (squashfs rsync phase). Real hardware install path
-    # validated on hetzner test box; qemu install test marginal value
-    # vs. blocking every iteration. Run manually: ARCNODE_ISO_PATH=...
-    # uv run pytest tests/test_iso_install.py
+    # Install path test (test_iso_install.py) removed from blocking path:
+    # d-i in single-thread qemu takes 60+ min on the squashfs rsync.
+    # Real-hardware install validated on hetzner; manual rerun:
+    #   ARCNODE_ISO_PATH=... uv run pytest tests/test_iso_install.py
   only:
     - main
 
