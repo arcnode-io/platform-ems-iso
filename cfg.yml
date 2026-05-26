@@ -2,3 +2,11 @@ local:
   log_level: DEBUG
 beta:
   log_level: INFO
+
+# Ollama model assignments by ROLE. Wizard pulls these during apply;
+# consumers (analyst-server, etc.) reference the same role names to
+# stay decoupled from specific model versions. Per ADR-024.
+ai_models:
+  chat:     qwen3:30b-a3b
+  code:     qwen2.5-coder:7b
+  embedder: nomic-embed-text
