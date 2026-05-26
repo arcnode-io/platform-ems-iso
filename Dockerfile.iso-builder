@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     ca-certificates \
     file \
+    curl \
+    gzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
