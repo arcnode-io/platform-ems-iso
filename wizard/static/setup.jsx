@@ -508,34 +508,27 @@ function PasswordStrengthW({ t, strength, password }) {
 }
 
 // ─── Step 5 — Review + apply ─────────────────────────────────────────
-const PROGRESS_LOG = [
-  { ms:  100, msg: 'Writing /etc/arcnode/config.yaml',     status: 'ok' },
-  { ms:  400, msg: 'Writing /etc/arcnode/secrets.env',     status: 'ok' },
-  { ms:  700, msg: 'Installing TLS cert + key into nginx', status: 'ok' },
-  { ms: 1100, msg: 'Provisioning admin user in postgres',  status: 'ok' },
-  { ms: 1500, msg: 'Starting arcnode-core.service',        status: 'ok' },
-  { ms: 2100, msg: 'Starting arcnode-agents.service',      status: 'ok' },
-  { ms: 2600, msg: 'Starting nginx (HMI listener)',        status: 'ok' },
-  { ms: 3100, msg: 'Health check · core API',              status: 'ok' },
-  { ms: 3500, msg: 'Health check · agents bus',            status: 'ok' },
-  { ms: 3900, msg: 'Health check · HMI surface',           status: 'ok' },
-  { ms: 4300, msg: 'Disabling /setup endpoint',            status: 'ok' },
-  { ms: 4500, msg: 'Done — redirecting to HMI in 3s…',     status: 'done' },
-];
-
-function Step5Review({ t, values, applyState, onApply, onJump }) {
+function Step5Review({ t, values, applyState, applyEvents, applyError,
+                       onApply, onJump }) {
   const isApplying = applyState === 'applying';
   const isDone     = applyState === 'done';
-  const isIdle     = applyState === 'idle';
+  const isIdle     = applyState === 'idle' && !applyError;
+  const titleText = isIdle ? 'Review and apply'
+                  : isDone ? 'Airgapped-ready'
+                  : applyError ? 'Apply failed — retry below'
+                  : 'Applying…';
+  const blurbText = isIdle
+    ? 'A single POST writes all configuration, pulls AI models, pulls container images, and starts ARCNODE. The /setup endpoint disappears after success.'
+    : isDone
+      ? 'ARCNODE is running. You can disconnect from the internet now. Redirecting to the HMI shortly.'
+      : applyError
+        ? 'Network blips during a 20-min pull happen. Pulls are idempotent — retry picks up where it stopped.'
+        : 'This takes a while on first install — AI models are 5–17 GB each. Pulls are streamed from ollama + docker.';
   return (
-    <StepShellW t={t} title={isIdle ? 'Review and apply' : (isDone ? 'Setup complete' : 'Applying…')}
-      blurb={isIdle
-        ? 'A single POST writes all configuration and starts ARCNODE. The /setup endpoint disappears after success.'
-        : (isDone
-          ? 'ARCNODE is running. The /setup URL has been disabled. You will be redirected to the HMI login.'
-          : 'Hang tight. This usually takes 4–6 seconds.')}>
+    <StepShellW t={t} title={titleText} blurb={blurbText}>
       {isIdle && <ReviewSummary t={t} values={values} onJump={onJump}/>}
-      {!isIdle && <ProgressLog t={t} applyState={applyState}/>}
+      {!isIdle && <ProgressLog t={t} events={applyEvents}
+                               error={applyError} onRetry={onApply}/>}
     </StepShellW>
   );
 }
@@ -606,110 +599,195 @@ function ReviewCard({ t, title, rows, onEdit }) {
   );
 }
 
-function ProgressLog({ t, applyState }) {
-  const [visible, setVisible] = useStateW([]);
-
-  useEffectW(() => {
-    if (applyState === 'idle') {
-      setVisible([]);
-      return;
+// Derive per-phase progress from the SSE event stream.
+// Phases reach: pending → active → done. Models track per-role byte progress;
+// images track a tail of the last log lines.
+function derivePhases(events) {
+  const phases = {
+    config: { status: 'pending' },
+    models: { status: 'pending', roles: [] },
+    images: { status: 'pending', lastLines: [] },
+    done:   false,
+  };
+  for (const ev of events) {
+    if (ev.phase === 'config') {
+      phases.config.status = ev.status === 'done' ? 'done' : 'active';
+    } else if (ev.phase === 'models') {
+      if (ev.status === 'start') {
+        phases.models.status = 'active';
+        phases.models.roles = ev.roles.map(r => ({
+          ...r, completed: 0, total: 0, done: false,
+        }));
+      } else if (ev.status === 'done') {
+        phases.models.status = 'done';
+      } else if (ev.status === 'model_progress' && ev.ollama?.total) {
+        const r = phases.models.roles.find(x => x.role === ev.role);
+        if (r) { r.completed = ev.ollama.completed || 0; r.total = ev.ollama.total; }
+      } else if (ev.status === 'model_done') {
+        const r = phases.models.roles.find(x => x.role === ev.role);
+        if (r) { r.done = true; r.completed = r.total; }
+      }
+    } else if (ev.phase === 'images') {
+      if (ev.status === 'start') phases.images.status = 'active';
+      else if (ev.status === 'done') phases.images.status = 'done';
+      else if (ev.status === 'log') {
+        phases.images.lastLines = [...phases.images.lastLines, ev.line].slice(-5);
+      }
+    } else if (ev.phase === 'done') {
+      phases.done = true;
     }
-    if (applyState === 'done') {
-      setVisible(PROGRESS_LOG.map((e, i) => ({ ...e, idx: i })));
-      return;
-    }
-    // applying — start from empty and stream entries in
-    setVisible([]);
-    let cancelled = false;
-    const timers = PROGRESS_LOG.map((entry, i) => setTimeout(() => {
-      if (cancelled) return;
-      setVisible(v => [...v, { ...entry, idx: i }]);
-    }, entry.ms));
-    return () => {
-      cancelled = true;
-      timers.forEach(clearTimeout);
-    };
-  }, [applyState]);
+  }
+  return phases;
+}
 
-  const allShown = visible.length === PROGRESS_LOG.length;
+function fmtBytes(n) {
+  if (!n || n < 1024) return `${n || 0} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let v = n / 1024, u = 0;
+  while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
+  return `${v.toFixed(1)} ${units[u]}`;
+}
+
+const ROLE_LABEL = { chat: 'Chat model', code: 'Code model', embedder: 'RAG embedder' };
+
+function ProgressLog({ t, events, error, onRetry }) {
+  const phases = derivePhases(events);
   return (
     <div style={{
-      background: t.panel,
-      border: `1px solid ${t.border}`,
-      borderRadius: RADIUS[3],
-      overflow: 'hidden',
+      background: t.panel, border: `1px solid ${t.border}`,
+      borderRadius: RADIUS[3], overflow: 'hidden',
     }}>
-      <div style={{
-        padding: `${SPACE[3]}px ${SPACE[4]}px`,
-        background: t.surface,
-        borderBottom: `1px solid ${t.border}`,
-        display: 'flex', alignItems: 'center', gap: SPACE[3],
-      }}>
-        {allShown
-          ? <CheckW color={t.statusOk} size={14}/>
-          : <SpinnerW color={t.accent} size={14}/>}
-        <span style={{
-          fontFamily: t.fontLabel, fontSize: 11, fontWeight: 700, letterSpacing: 0.18,
-          color: t.text, textTransform: 'uppercase',
-        }}>{allShown ? 'Apply complete' : 'Apply in progress'}</span>
-        <span style={{ flex: 1 }}/>
-        <span style={{
-          fontFamily: t.fontLabel, fontSize: 10, color: t.textSoft, letterSpacing: 0.1,
-        }}>{visible.length} / {PROGRESS_LOG.length}</span>
-      </div>
-      <div style={{
-        padding: `${SPACE[3]}px ${SPACE[4]}px`,
-        background: t.bg,
-        fontFamily: t.fontLabel, fontSize: 12,
-        color: t.textMid,
-        minHeight: 320,
-        display: 'flex', flexDirection: 'column', gap: 4,
-      }}>
-        {visible.map(entry => (
-          <ProgressLogRow key={entry.idx} t={t} entry={entry}/>
+      <PhaseRow t={t} label="Writing config" state={phases.config.status}/>
+      <PhaseRow t={t} label="AI models" state={phases.models.status}>
+        {phases.models.roles.map(r => (
+          <ModelRow key={r.role} t={t} role={r.role} model={r.model}
+                    completed={r.completed} total={r.total} done={r.done}/>
         ))}
-        {!allShown && (
-          <ProgressLogRow t={t} pending
-            entry={{ ms: PROGRESS_LOG[visible.length]?.ms ?? 0,
-                     msg: PROGRESS_LOG[visible.length]?.msg ?? 'next step',
-                     status: 'pending' }}/>
+      </PhaseRow>
+      <PhaseRow t={t} label="Container images" state={phases.images.status}>
+        {phases.images.lastLines.length > 0 && (
+          <pre style={{
+            margin: 0, padding: `${SPACE[2]}px ${SPACE[4]}px`,
+            background: t.bg, color: t.textSoft,
+            fontFamily: t.fontLabel, fontSize: 11,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            maxHeight: 110, overflow: 'hidden',
+          }}>{phases.images.lastLines.join('\n')}</pre>
         )}
-      </div>
+      </PhaseRow>
+      {phases.done && (
+        <div style={{
+          padding: `${SPACE[4]}px ${SPACE[4]}px`,
+          background: t.bg,
+          borderTop: `1px solid ${t.border}`,
+          display: 'flex', alignItems: 'center', gap: SPACE[3],
+        }}>
+          <CheckW color={t.statusOk} size={16}/>
+          <div style={{ flex: 1 }}>
+            <div style={{
+              fontFamily: t.fontBody, fontSize: 14, fontWeight: 600,
+              color: t.text,
+            }}>Airgapped-ready</div>
+            <div style={{
+              fontFamily: t.fontBody, fontSize: 12, color: t.textMid,
+              marginTop: 2,
+            }}>You can disconnect from the internet now. Redirecting to HMI…</div>
+          </div>
+        </div>
+      )}
+      {error && (
+        <div style={{
+          padding: `${SPACE[4]}px ${SPACE[4]}px`,
+          background: t.bg, borderTop: `1px solid ${t.border}`,
+          display: 'flex', alignItems: 'center', gap: SPACE[3],
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{
+              fontFamily: t.fontBody, fontSize: 14, fontWeight: 600,
+              color: t.statusBad || '#d44',
+            }}>Apply failed</div>
+            <div style={{
+              fontFamily: t.fontLabel, fontSize: 11, color: t.textMid,
+              marginTop: 4, wordBreak: 'break-word',
+            }}>{error}</div>
+          </div>
+          <button onClick={onRetry} style={{
+            appearance: 'none', cursor: 'pointer',
+            height: 36, padding: '0 14px',
+            background: t.accent, color: '#fff',
+            border: 'none', borderRadius: RADIUS[2],
+            fontFamily: t.fontLabel, fontSize: 11, fontWeight: 700,
+            letterSpacing: 0.2, textTransform: 'uppercase',
+          }}>Retry</button>
+        </div>
+      )}
     </div>
   );
 }
-function ProgressLogRow({ t, entry, pending }) {
+
+function PhaseRow({ t, label, state, children }) {
+  const icon = state === 'done'   ? <CheckW color={t.statusOk} size={14}/>
+             : state === 'active' ? <SpinnerW color={t.accent} size={14}/>
+             :                      <span style={{
+                                      width: 12, height: 12, borderRadius: '50%',
+                                      border: `1px solid ${t.border}`,
+                                      display: 'inline-block',
+                                    }}/>;
+  return (
+    <div style={{ borderBottom: `1px solid ${t.border}` }}>
+      <div style={{
+        padding: `${SPACE[3]}px ${SPACE[4]}px`,
+        background: t.surface,
+        display: 'flex', alignItems: 'center', gap: SPACE[3],
+      }}>
+        {icon}
+        <span style={{
+          fontFamily: t.fontLabel, fontSize: 11, fontWeight: 700,
+          letterSpacing: 0.18, color: t.text, textTransform: 'uppercase',
+        }}>{label}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ModelRow({ t, role, model, completed, total, done }) {
+  const pct = total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '48px 16px 1fr',
-      gap: 10,
-      alignItems: 'flex-start',
-      lineHeight: 1.5,
-      minHeight: 20,
+      padding: `${SPACE[2]}px ${SPACE[4]}px`,
+      display: 'grid', gridTemplateColumns: '110px 1fr 90px 90px',
+      gap: SPACE[3], alignItems: 'center',
+      background: t.bg,
     }}>
       <span style={{
-        color: t.textFaint,
-        fontFamily: t.fontLabel, fontSize: 11,
-        whiteSpace: 'nowrap',
-      }}>
-        {pending ? '· · ·' :
-          `${String(Math.floor(entry.ms / 1000)).padStart(2, '0')}.${String(Math.floor((entry.ms % 1000) / 10)).padStart(2, '0')}`}
-      </span>
+        fontFamily: t.fontLabel, fontSize: 10, fontWeight: 700,
+        letterSpacing: 0.18, color: t.textSoft, textTransform: 'uppercase',
+      }}>{ROLE_LABEL[role] || role}</span>
+      <div>
+        <div style={{
+          fontFamily: t.fontLabel, fontSize: 11, color: t.textMid,
+          marginBottom: 4,
+        }}>{model}</div>
+        <div style={{
+          height: 4, background: t.border, borderRadius: 2,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%', width: `${pct}%`,
+            background: done ? t.statusOk : t.accent,
+            transition: 'width 0.3s ease-out',
+          }}/>
+        </div>
+      </div>
       <span style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        height: 18,
-      }}>
-        {pending
-          ? <SpinnerW color={t.accent} size={11}/>
-          : (entry.status === 'done'
-            ? <CheckW color={t.statusOk} size={11}/>
-            : <span style={{ color: t.statusOk, fontWeight: 700 }}>·</span>)}
-      </span>
+        fontFamily: t.fontLabel, fontSize: 11, color: t.textSoft,
+        textAlign: 'right',
+      }}>{done ? '' : `${fmtBytes(completed)} / ${fmtBytes(total)}`}</span>
       <span style={{
-        color: pending ? t.textSoft : t.text,
-        wordBreak: 'break-word',
-      }}>{entry.msg}{pending ? '…' : ''}</span>
+        fontFamily: t.fontLabel, fontSize: 11, color: t.textSoft,
+        textAlign: 'right',
+      }}>{done ? '✓ done' : `${pct}%`}</span>
     </div>
   );
 }
@@ -931,6 +1009,8 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
   const [current, setCurrent] = useStateW(initialStep || 'preflight');
   const [completed, setCompleted] = useStateW(new Set());
   const [applyState, setApplyState] = useStateW(initialApply || 'idle');
+  const [applyEvents, setApplyEvents] = useStateW([]);
+  const [applyError, setApplyError] = useStateW(null);
   const [hwScenario, setHwScenario] = useStateW(initialHwScenario || 'ok');
   const [hwKey, setHwKey] = useStateW(0); // bumps to re-trigger the spinner
 
@@ -978,11 +1058,14 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
     const idx = STEPS.findIndex(s => s.id === current);
     if (idx > 0) setCurrent(STEPS[idx - 1].id);
   };
-  // WIRING: real POST /setup/apply instead of the designer's setTimeout
-  // mock. Backend writes secrets + TLS + admin, kicks compose, marks setup
-  // complete. On 200 → 'done' (UI redirects). On error → snap to 'idle'.
+  // POST /setup/apply now returns text/event-stream. Read the body
+  // incrementally and route events into derivePhases-friendly state.
+  // Pulls are idempotent — retry on error re-POSTs same body, backend
+  // skips cached models/images quickly.
   const onApply = async () => {
     setApplyState('applying');
+    setApplyEvents([]);
+    setApplyError(null);
     const body = {
       tls: {
         mode: values.tls.mode === 'selfsigned' ? 'self_signed' : 'upload',
@@ -1000,13 +1083,40 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
         body: JSON.stringify(body),
       });
       if (!resp.ok) throw new Error(`apply failed: ${resp.status}`);
-      const out = await resp.json();
-      setApplyState('done');
-      setTimeout(() => { window.location.href = out.redirect || '/'; }, 1000);
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const frames = buf.split('\n\n');
+        buf = frames.pop() || '';
+        for (const f of frames) {
+          if (!f.startsWith('data: ')) continue;
+          let ev;
+          try { ev = JSON.parse(f.slice(6)); }
+          catch (e) { console.error('bad SSE frame', f); continue; }
+          if (ev.phase === 'error') {
+            setApplyError(ev.message || 'unknown apply error');
+            setApplyState('idle');
+            return;
+          }
+          setApplyEvents(es => [...es, ev]);
+          if (ev.phase === 'done') {
+            setApplyState('done');
+            // 3s pause so the operator sees the "airgapped-ready" message
+            // before the HMI takeover bounces them.
+            setTimeout(() => {
+              window.location.href = ev.redirect || '/';
+            }, 3000);
+          }
+        }
+      }
     } catch (e) {
       console.error('apply error', e);
+      setApplyError(e.message);
       setApplyState('idle');
-      alert(`Setup failed: ${e.message}`);  // TODO: inline error UI
     }
   };
   const onJump = (id) => setCurrent(id);
@@ -1044,6 +1154,8 @@ function SetupWizardBody({ t, initialStep, initialApply, initialHwScenario, isDa
                                                     onP={setPassword} onC={setConfirm}/>}
           {current === 'review'   && <Step5Review   t={t} values={values}
                                                     applyState={applyState}
+                                                    applyEvents={applyEvents}
+                                                    applyError={applyError}
                                                     onApply={onApply} onJump={onJump}/>}
         </div>
       </div>
