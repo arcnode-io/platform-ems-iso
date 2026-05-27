@@ -1,0 +1,43 @@
+#!/bin/sh
+# Inject network-console udeb into d-i's initrd so headless installs
+# (rack/colo/bare-metal cloud — anywhere without a monitor) can SSH
+# into the installer at installer@<box-ip> and walk d-i over a TTY.
+#
+# Customer with a monitor: completely unaffected — the regular d-i
+# screens run as today. network-console just starts an additional
+# sshd inside d-i so anyone who needs it can drive remotely.
+#
+# Preseed (live-build/config/includes.binary/install/preseed.cfg)
+# supplies the install-time SSH password.
+#
+# Runs in the binary stage with CWD = live-build/binary/. Initrd lives
+# at install/initrd.gz at this point.
+set -e
+
+INITRD=install/initrd.gz
+if [ ! -f "$INITRD" ]; then
+  echo "inject-network-console: $INITRD not found, skipping"
+  exit 0
+fi
+
+INDEX_URL="https://deb.debian.org/debian/dists/bookworm/main/debian-installer/binary-amd64/Packages.gz"
+UDEB_PATH=$(curl -fsSL "$INDEX_URL" | gunzip -c | \
+  awk '/^Package: network-console$/{found=1} found && /^Filename:/{print $2; exit}')
+
+if [ -z "$UDEB_PATH" ]; then
+  echo "inject-network-console: ERROR — couldn't resolve network-console udeb from $INDEX_URL"
+  exit 1
+fi
+
+UDEB_URL="https://deb.debian.org/debian/$UDEB_PATH"
+WORK=$(mktemp -d)
+trap "rm -rf $WORK" EXIT
+
+( cd "$WORK" && gunzip -c "$OLDPWD/$INITRD" | cpio -id --quiet )
+
+curl -fsSL "$UDEB_URL" -o "$WORK/network-console.udeb"
+( cd "$WORK" && dpkg-deb -x network-console.udeb . && rm network-console.udeb )
+
+( cd "$WORK" && find . | cpio -o -H newc --quiet | gzip ) > "$INITRD"
+
+echo "inject-network-console: udeb from $UDEB_PATH injected into $INITRD"
