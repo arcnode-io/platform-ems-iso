@@ -50,16 +50,6 @@ publish:
     # /opt/arcnode/wizard/ must include the wizard/ subdir alongside src/.
     - cp -r src wizard pyproject.toml uv.lock cfg.yml live-build/config/includes.chroot/opt/arcnode/wizard/
 
-    # Phase 1b — build + push the telemetry-writer image to public ECR.
-    # Image is a thin layer on python:3.13-alpine (paho-mqtt +
-    # psycopg2-binary preinstalled). Pushed BEFORE the ISO bakes so the
-    # compose.yaml `image:` reference resolves at customer apply time.
-    # First-pipeline note: ECR repo must exist — created one-time via
-    # `aws ecr-public create-repository --repository-name ems-telemetry-writer`.
-    - aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
-    - docker build -t public.ecr.aws/y1d2j6a8/ems-telemetry-writer:latest appliance/images/telemetry-writer/
-    - docker push public.ecr.aws/y1d2j6a8/ems-telemetry-writer:latest
-
     # Phase 2 — build ISO inside a container. Chroot is root-owned but
     # confined to the container's writable layer; host workspace is
     # never written to with privilege.
