@@ -49,19 +49,17 @@ services:
   # MQTT → postgres-timeseries bridge. Host network: TIMESERIES_URL
   # connects to 127.0.0.1:5433 (host postgres); BROKER → 127.0.0.1:1883
   # (hivemq published its port to host).
+  #
+  # Image bakes paho-mqtt + psycopg2-binary preinstalled (see
+  # appliance/images/telemetry-writer/Dockerfile). No runtime pip install
+  # → restart-clean when the box reboots offline.
   telemetry-writer:
-    image: python:3.13-alpine
+    image: public.ecr.aws/y1d2j6a8/ems-telemetry-writer:latest
     restart: unless-stopped
     network_mode: host
     <<: *env-files
     environment:
       BROKER: "127.0.0.1"
-    volumes:
-      - /etc/arcnode/init-scripts:/scripts:ro
-    command:
-      - sh
-      - -c
-      - "pip install --quiet paho-mqtt psycopg2-binary && python /scripts/telemetry_writer.py"
     depends_on:
       hivemq:
         condition: service_started
