@@ -18,6 +18,16 @@ curl
 gnupg
 sudo
 apt-transport-https
+# network-manager — REQUIRED for the installed system to come up on the
+# network after first boot. live-config handles networking ONLY in
+# boot=live mode; once the squashfs is copied to disk by d-i's
+# live-installer flow, live-config's init scripts don't run. Without NM
+# (or ifupdown / systemd-networkd) the installed system has zero net
+# config → login prompt appears but interface stays down. NM auto-
+# enables on install, copes with any interface name (modern enp1s0
+# etc.), DHCP out of the box. Verified failure mode by Rob Ristroph
+# 2026-05-25: install completed, reboot, no ping.
+network-manager
 # Ollama's install.sh extracts a zstd-compressed tarball
 zstd
 # Docker refuses to start containers if AppArmor is in the kernel but
