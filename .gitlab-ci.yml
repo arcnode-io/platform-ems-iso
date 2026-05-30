@@ -71,6 +71,14 @@ publish:
     # drives the wizard via HTTP.
     - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot.py -vv
 
+    # Phase 4b — UEFI boot test. Same ~7 min, but boots under OVMF
+    # firmware instead of legacy BIOS. Customer hardware (Rob Ristroph
+    # 2026-05-30) is UEFI; the BIOS path doesn't catch EFI grub.cfg
+    # bugs (string-match weirdness with UTF-8 em-dashes, EFI menuentries
+    # diverging from BIOS, etc.). Skips cleanly if OVMF isn't installed
+    # on the runner — install via `apt install ovmf` to enable.
+    - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot_uefi.py -vv
+
     # Phase 5 — S3 upload (sha-tagged + server-side copy to latest alias).
     # Bucket policy grants s3:GetObject on iso/reference/* publicly.
     - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
