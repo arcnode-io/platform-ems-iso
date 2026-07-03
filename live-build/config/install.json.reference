@@ -1,9 +1,0 @@
-{
-  "customer": "Reference Build",
-  "site": "Demo Site",
-  "market": "ERCOT · HB_NORTH",
-  "isoVersion": "1.0.0-beta",
-  "isoBuiltAt": "ci",
-  "orderId": "reference",
-  "rev": "Rev 1"
-}

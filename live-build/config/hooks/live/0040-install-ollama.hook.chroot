@@ -1,9 +1,0 @@
-#!/bin/sh
-# Install Ollama. Unpinned latest — same pattern as the dev server
-# (tooling-playbooks/dev-services-setup.yml ollama task).
-#
-# Official install.sh writes the systemd unit; we overwrite it in
-# hook 0080 with our own unit (binds to 127.0.0.1, OLLAMA_MODELS preset).
-set -e
-
-curl -fsSL https://ollama.ai/install.sh | sh

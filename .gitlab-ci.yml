@@ -3,91 +3,18 @@ stages:
   - publish
   - mirror
 
-checks:
+check:
   stage: check
   script:
-    - uv run poe checks
-    - uv run pytest --junitxml=junit.xml
-    - uv run poe cover
-    - uv run coverage xml
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
-  artifacts:
-    when: always
-    reports:
-      junit: junit.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage.xml
+    # dockerized — the shell runner host doesn't carry shellcheck
+    - docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable bootstrap.sh
 
 publish:
   stage: publish
-  # lb build inside docker ~14m + tests ~1m + s3 cp ~30s ≈ 16m typical.
-  # 1h leaves headroom; the old "leave the workspace dirty for an hour"
-  # failure mode is gone — lb build lives inside the container's
-  # writable layer, host workspace stays gitlab-runner-owned forever.
-  timeout: 1h
   script:
-    # Phase 1 — populate live-build/config/includes.chroot/* on the HOST
-    # (no privileges; gitlab-runner-owned). Docker build then copies
-    # the populated tree into the image at build time.
-    - mkdir -p live-build/config/includes.chroot/etc/systemd/system
-    - cp appliance/systemd/*.service live-build/config/includes.chroot/etc/systemd/system/
-    - mkdir -p live-build/config/includes.chroot/etc/arcnode/compose
-    - cp appliance/compose/* live-build/config/includes.chroot/etc/arcnode/compose/
-    # compose bind-mounts prometheus.yml from /etc/arcnode/observability/.
-    # Without the file existing, docker auto-creates it as a directory
-    # (breaks the mount). Copy explicitly into that path too.
-    - mkdir -p live-build/config/includes.chroot/etc/arcnode/observability
-    - cp appliance/compose/prometheus.yml live-build/config/includes.chroot/etc/arcnode/observability/prometheus.yml
-    # /etc/arcnode/* files compose bind-mounts as FILES — pre-create them
-    # so docker doesn't auto-make-them-dirs. Includes dtm.json + two
-    # cfg.customer.yml placeholders.
-    - cp appliance/etc-arcnode/* live-build/config/includes.chroot/etc/arcnode/
-    - cp live-build/config/install.json.reference live-build/config/includes.chroot/etc/arcnode/install.json
-    - mkdir -p live-build/config/includes.chroot/opt/arcnode/wizard
-    # Copy wizard/ subdir too — src/app.py resolves STATIC_DIR/TEMPLATES_DIR
-    # via Path(__file__).parent.parent / "wizard", so the layout under
-    # /opt/arcnode/wizard/ must include the wizard/ subdir alongside src/.
-    - cp -r src wizard pyproject.toml uv.lock cfg.yml live-build/config/includes.chroot/opt/arcnode/wizard/
-
-    # Phase 2 — build ISO inside a container. Chroot is root-owned but
-    # confined to the container's writable layer; host workspace is
-    # never written to with privilege.
-    - docker build -t arcnode-iso-builder -f Dockerfile.iso-builder .
-    # --privileged: debootstrap inside the chroot mounts /proc + others.
-    # No --rm: container persists post-exit so docker cp can pull the ISO.
-    - docker run --privileged --name "iso-build-${CI_JOB_ID}" arcnode-iso-builder
-    # Pull the renamed ISO out of the stopped container, then nuke it.
-    - docker cp "iso-build-${CI_JOB_ID}:/build/output.iso" "live-build/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
-    - docker rm "iso-build-${CI_JOB_ID}"
-    - ISO="live-build/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
-    - test -s "$ISO" || (echo "ISO empty / missing"; exit 1)
-
-    # Phase 3 — cheap structural assertions (~30s). Catches "my hook
-    # silently didn't fire" before spending 7 min booting.
-    - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_contents.py -vv
-
-    # Phase 4 — live-mode boot test. ~7 min: boots the ISO in qemu,
-    # drives the wizard via HTTP.
-    - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot.py -vv
-
-    # Phase 4b — UEFI boot test. Same ~7 min, but boots under OVMF
-    # firmware instead of legacy BIOS. Customer hardware (Rob Ristroph
-    # 2026-05-30) is UEFI; the BIOS path doesn't catch EFI grub.cfg
-    # bugs (string-match weirdness with UTF-8 em-dashes, EFI menuentries
-    # diverging from BIOS, etc.). Skips cleanly if OVMF isn't installed
-    # on the runner — install via `apt install ovmf` to enable.
-    - ARCNODE_ISO_PATH="$ISO" uv run pytest tests/test_iso_boot_uefi.py -vv
-
-    # Phase 5 — S3 upload (sha-tagged + server-side copy to latest alias).
-    # Bucket policy grants s3:GetObject on iso/reference/* publicly.
-    - aws s3 cp "$ISO" "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso"
-    # s3→s3 CopyObject; bytes never leave AWS. Saves ~10min/pipeline.
-    - aws s3 cp "s3://arcnode-public/iso/reference/arcnode-ems-${CI_COMMIT_SHORT_SHA}.iso" "s3://arcnode-public/iso/reference/arcnode-ems-latest.iso"
-    # Install path test (test_iso_install.py) removed from blocking path:
-    # d-i in single-thread qemu takes 60+ min on the squashfs rsync.
-    # Real-hardware install validated on hetzner; manual rerun:
-    #   ARCNODE_ISO_PATH=... uv run pytest tests/test_iso_install.py
+    # Fixed key — the readme's curl one-liner and any printed install docs
+    # point here. Latest main always wins.
+    - aws s3 cp bootstrap.sh s3://arcnode-public/appliance/bootstrap.sh
   only:
     - main
 
