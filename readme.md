@@ -1,43 +1,36 @@
 # ARCNODE Appliance 📦
 
-![](https://img.shields.io/gitlab/pipeline-status/arcnode-io/platform-ems-iso?branch=main&logo=gitlab)
+> Stock Debian. No custom ISO. Provisioned with Hetzner `installimage`; the
+> only customization is the login greeting.
 
-> Plain Debian + one bootstrap script. No custom ISO.
+## History
 
-## Approach
+This repo used to master a custom Debian live/installer ISO (live-build +
+GRUB + preseed + d-i). Weeks of firmware-class debugging over the telephone
+taught the lesson: **the install medium was our biggest bug surface and it
+wasn't the product.** That approach is preserved at the git tag
+`archive/live-build-approach`.
 
-The previous incarnation of this repo mastered a custom Debian live/installer
-ISO (live-build + GRUB surgery + preseed + d-i). Weeks of fighting
-firmware-class bugs over the telephone taught the lesson: **the install medium
-was our biggest bug surface and it wasn't our product.**
-
-Reset (2026-07-02): the appliance is a **stock Debian install** — Hetzner
-`installimage`, the official netinst ISO, whatever the hardware takes — plus
-`bootstrap.sh` layered on top in verifiable increments. Each increment must be
-provable on real hardware before the next lands.
-
-The old approach is preserved at the git tag `archive/live-build-approach`
-(wizard UI, appliance compose, UEFI qemu tests — cherry-pick when needed).
+The appliance is now a **plain Debian install** plus a post-install hook.
+Each capability is added in an increment provable on real hardware first.
 
 ## Walking skeleton
 
 | step | capability | proof |
 |---|---|---|
-| 1 | login banner | log in → see `arcnode` |
+| 1 | login greeting | ssh in → the MOTD says `arcnode` |
 | … | (grow from here) | |
 
-## Use
+## Provision (Hetzner dedicated)
 
-On a fresh Debian box, as root:
+From the Hetzner **rescue system** (Robot → activate rescue → reset):
 
 ```sh
-curl -fsSL https://arcnode-public.s3.amazonaws.com/appliance/bootstrap.sh | sh
+# copy the two files over, then:
+installimage -a -c install/arcnode.conf -x install/postinstall.sh
+reboot
 ```
 
-Log out, log in: `arcnode`.
-
-## Hetzner iteration loop
-
-1. Rescue system → `installimage` → Debian 12 → reboot
-2. SSH in, run the bootstrap
-3. Verify the step's proof
+`arcnode.conf` installs stock Debian 12 (RAID1 across the two NVMe, hostname
+`arcnode`). `postinstall.sh` runs in the installed chroot and sets
+`/etc/motd` to `arcnode`. First login greets you.

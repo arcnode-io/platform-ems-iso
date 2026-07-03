@@ -1,22 +1,11 @@
 stages:
   - check
-  - publish
   - mirror
 
 check:
   stage: check
   script:
-    # dockerized — the shell runner host doesn't carry shellcheck
-    - docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable bootstrap.sh
-
-publish:
-  stage: publish
-  script:
-    # Fixed key — the readme's curl one-liner and any printed install docs
-    # point here. Latest main always wins.
-    - aws s3 cp bootstrap.sh s3://arcnode-public/appliance/bootstrap.sh
-  only:
-    - main
+    - docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable install/postinstall.sh
 
 mirror:
   stage: mirror
