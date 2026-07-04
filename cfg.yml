@@ -4,8 +4,10 @@ http_port: 80
 log_level: INFO
 
 # Ollama model assignments by ROLE (ADR-024). Consumers reference role names,
-# staying decoupled from specific versions. Used once analyst/ollama land.
+# staying decoupled from specific versions. Tags match the arcnode Ollama
+# endpoint (173.211.12.43) + the analyst agent/mcp cfg.defaults — the airgap
+# bundle pulls exactly these. (:cloud models are passthrough, not airgappable.)
 ai_models:
-  chat: qwen3:30b-a3b
-  code: qwen2.5-coder:7b
-  embedder: nomic-embed-text
+  chat: gemma4:26b
+  code: qwen2.5:7b-instruct-q4_K_M
+  embedder: qwen3-embedding:4b
