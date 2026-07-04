@@ -1,0 +1,18 @@
+# Fail loud if any core service isn't up (and healthy, where a healthcheck
+# exists) within the timeout. A converge must not report success on a half-up
+# stack. Uses the vendored community.docker module — no shell escaping.
+- name: Health gate — core services must be running + healthy
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  register: health_probe
+  retries: 30
+  delay: 10
+  until:
+    - health_probe.container is not none
+    - health_probe.container.State.Status == 'running'
+    - >-
+      health_probe.container.State.Health is not defined
+      or health_probe.container.State.Health.Status == 'healthy'
+  loop: "{{ health_core_services }}"
+  loop_control:
+    label: "{{ item }}"

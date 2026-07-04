@@ -16,3 +16,4 @@
     - {role: secrets, tags: [secrets, stack]}
     - {role: config, tags: [config, stack]}
     - {role: stack, tags: [stack]}
+    - {role: health, tags: [health, stack]}
