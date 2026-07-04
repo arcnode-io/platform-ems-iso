@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"     # repo root
 WORK="${WORK:-/tmp/arcnode-iso}"
 BASE_ISO="${BASE_ISO:-$WORK/debian-12-netinst.amd64.iso}"
 OUT="${OUT:-$WORK/arcnode-appliance.iso}"
-BASE_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.11.0-amd64-netinst.iso"
+BASE_URL="https://cdimage.debian.org/cdimage/archive/12.11.0/amd64/iso-cd/debian-12.11.0-amd64-netinst.iso"
 
 mkdir -p "$WORK"
 [ -f "$BASE_ISO" ] || { echo "fetching base Debian ISO..."; curl -fsSL "$BASE_URL" -o "$BASE_ISO"; }
