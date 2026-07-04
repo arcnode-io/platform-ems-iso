@@ -1,0 +1,12 @@
+[Unit]
+Description=ARCNODE appliance convergence (ansible self-converge)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ansible-playbook -i localhost, -c local /opt/arcnode/ansible/site.yml
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

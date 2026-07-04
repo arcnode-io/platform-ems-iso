@@ -1,0 +1,3 @@
+# ARCNODE appliance config vars. Config only — secrets live in env, never here.
+greeting: arcnode
+http_port: 80

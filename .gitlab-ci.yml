@@ -5,7 +5,10 @@ stages:
 check:
   stage: check
   script:
-    - docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable install/postinstall.sh
+    - docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable install/postinstall.sh install/provision.sh
+    - pip install --quiet ansible-core
+    - ansible-galaxy collection install ansible/collections/*.tar.gz
+    - ansible-playbook --syntax-check ansible/site.yml
 
 mirror:
   stage: mirror
