@@ -17,7 +17,7 @@ cp -a "$REPO/ansible/." /opt/arcnode/ansible/
 install -m 0644 "$REPO/cfg.yml" /opt/arcnode/cfg.yml
 
 # Vendored collection (airgap — never galaxy).
-ansible-galaxy collection install /opt/arcnode/ansible/collections/*.tar.gz --force
+ansible-galaxy collection install /opt/arcnode/ansible/collections/*.tar.gz -p /opt/arcnode/ansible/vendored_collections --force
 
 install -m 0644 "$REPO/install/arcnode.service" /etc/systemd/system/arcnode.service
 systemctl daemon-reload

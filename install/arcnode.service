@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+Environment=ANSIBLE_COLLECTIONS_PATH=/opt/arcnode/ansible/vendored_collections
 ExecStart=/usr/bin/ansible-playbook -i localhost, -c local /opt/arcnode/ansible/site.yml
 RemainAfterExit=yes
 
