@@ -1,10 +1,26 @@
-# Render the compose, then converge it. Idempotent: docker_compose_v2 with
-# state=present is a no-op when the stack already matches.
+# Render the compose, load any airgap image bundle, then converge. Idempotent:
+# docker_compose_v2 with state=present is a no-op when the stack already matches.
 - name: Render compose
   ansible.builtin.template:
     src: compose.yml.j2
     dest: /opt/arcnode/stack/compose.yml
     mode: "0644"
+
+# Airgap: if a bundle was staged (tools/bundle-images.sh at the bench), load it
+# so `compose up` finds every image locally and never reaches for a registry.
+# No-op online (dir absent) — first converge just pulls.
+- name: Find image bundles
+  ansible.builtin.find:
+    paths: /opt/arcnode/images
+    patterns: "*.tar"
+  register: stack_image_bundles
+
+- name: Load bundled images (airgap — no registry pull)
+  community.docker.docker_image_load:
+    path: "{{ item.path }}"
+  loop: "{{ stack_image_bundles.files }}"
+  loop_control:
+    label: "{{ item.path }}"
 
 - name: Bring up the stack
   community.docker.docker_compose_v2:

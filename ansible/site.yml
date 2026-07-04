@@ -2,7 +2,7 @@
 # control node, so it converges behind the customer firewall. systemd
 # (arcnode.service) re-runs it every boot; re-running is idempotent.
 #
-# Roles run in order: docker engine → generate secrets → render configs →
+# Roles: harden OS → docker engine → generate secrets → render configs →
 # bring up the stack. Each is independently ownable and stays <200 lines.
 - name: Converge the ARCNODE appliance
   hosts: localhost
@@ -11,7 +11,8 @@
   vars_files:
     - /opt/arcnode/cfg.yml
   roles:
-    - docker
-    - secrets
-    - config
-    - stack
+    - {role: base, tags: [base]}
+    - {role: docker, tags: [docker]}
+    - {role: secrets, tags: [secrets, stack]}
+    - {role: config, tags: [config, stack]}
+    - {role: stack, tags: [stack]}

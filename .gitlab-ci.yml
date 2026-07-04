@@ -2,13 +2,28 @@ stages:
   - check
   - mirror
 
-check:
+lint:
+  stage: check
+  image: python:3.12-slim
+  script:
+    - pip install --quiet ansible-core ansible-lint yamllint
+    - ansible-galaxy collection install ansible/collections/*.tar.gz
+    - yamllint ansible/ cfg.yml
+    - ansible-lint ansible/site.yml
+    - ansible-playbook --syntax-check ansible/site.yml
+
+shell:
   stage: check
   script:
-    - docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable install/postinstall.sh install/provision.sh
-    - pip install --quiet ansible-core
-    - ansible-galaxy collection install ansible/collections/*.tar.gz
-    - ansible-playbook --syntax-check ansible/site.yml
+    - docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable install/postinstall.sh install/provision.sh tools/bundle-images.sh tools/factory-reset.sh
+
+compose:
+  stage: check
+  image: docker:27-cli
+  script:
+    # Render + validate the compose the appliance actually ships.
+    - apk add --no-cache gettext >/dev/null 2>&1 || true
+    - docker compose -f <(sed 's/{{ http_port | default(80) }}/80/' ansible/roles/stack/templates/compose.yml.j2) --env-file /dev/null config >/dev/null
 
 mirror:
   stage: mirror

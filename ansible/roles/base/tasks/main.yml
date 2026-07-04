@@ -1,0 +1,59 @@
+# Production-harden stock Debian. Uses the ufw CLI (not community.general) to
+# avoid vendoring another collection for airgap. NO unattended-upgrades — an
+# airgapped box has nowhere to phone home for updates.
+- name: Firewall + fail2ban
+  ansible.builtin.apt:
+    name: [ufw, fail2ban, python3-systemd]
+    state: present
+    update_cache: true
+
+- name: UFW default deny incoming
+  ansible.builtin.command: ufw default deny incoming
+  register: base_ufw_in
+  changed_when: "'(incoming)' in base_ufw_in.stdout and 'existing' not in base_ufw_in.stdout"
+
+- name: UFW default allow outgoing (gateway dials OUT to OT devices + broker)
+  ansible.builtin.command: ufw default allow outgoing
+  register: base_ufw_out
+  changed_when: "'(outgoing)' in base_ufw_out.stdout"
+
+# Allow management + product ports BEFORE enabling — never lock out SSH. Broker
+# 1883 stays container-internal (not host-published), so it needs no rule.
+- name: UFW allow management + product ports
+  ansible.builtin.command: "ufw allow {{ item }}"
+  loop: ["22/tcp", "80/tcp", "443/tcp"]
+  register: base_ufw_allow
+  changed_when: "'existing' not in base_ufw_allow.stdout"
+
+- name: UFW enable
+  ansible.builtin.command: ufw --force enable
+  register: base_ufw_en
+  changed_when: "'active' in base_ufw_en.stdout"
+
+- name: SSH hardening (key-only; root via key still allowed for ops)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-arcnode.conf
+    content: |
+      PermitRootLogin prohibit-password
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+    mode: "0644"
+  notify: Restart sshd
+
+- name: Fail2ban sshd jail
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/arcnode-sshd.conf
+    content: |
+      [sshd]
+      enabled = true
+      backend = systemd
+      maxretry = 5
+      bantime = 1h
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Fail2ban running
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true
