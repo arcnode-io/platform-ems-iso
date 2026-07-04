@@ -35,20 +35,38 @@ rsync -a --exclude '.git' "$HERE/ansible" "$HERE/cfg.yml" "$HERE/install" "$WORK
 # TODO(payload): cp -a "$MODELS" "$WORK/iso/arcnode/ollama-models/"  (task 8 output)
 
 echo "== make it auto-install (BIOS isolinux + UEFI grub) =="
-# BIOS text menu
-if [ -f "$WORK/iso/isolinux/txt.cfg" ]; then
-  sed -i '1i default arcnode\nlabel arcnode\n  menu label ^Install ARCNODE appliance (unattended)\n  kernel /install.amd/vmlinuz\n  append vga=788 initrd=/install.amd/initrd.gz auto=true priority=critical preseed/file=/cdrom/preseed.cfg console=tty0 console=ttyS0,115200 ---' \
-    "$WORK/iso/isolinux/txt.cfg"
-fi
-# UEFI grub menu
+# BIOS: replace isolinux.cfg entirely — no graphical menu, boot our entry
+# immediately (prompt 0, timeout 1) and mirror to serial for headless installs.
+# Prepending to txt.cfg does NOT override Debian's vesamenu default, which just
+# sits waiting for input.
+cat > "$WORK/iso/isolinux/isolinux.cfg" <<'CFG'
+serial 0 115200
+default arcnode
+prompt 0
+timeout 1
+label arcnode
+  kernel /install.amd/vmlinuz
+  append vga=788 initrd=/install.amd/initrd.gz auto=true priority=critical preseed/file=/cdrom/preseed.cfg console=tty0 console=ttyS0,115200 ---
+CFG
+
+# UEFI: prepend our entry + default + short timeout + serial, keep the rest.
 if [ -f "$WORK/iso/boot/grub/grub.cfg" ]; then
-  cat >> "$WORK/iso/boot/grub/grub.cfg" <<'GRUB'
-menuentry "Install ARCNODE appliance (unattended)" {
-    set background_color=black
+  grubcfg="$WORK/iso/boot/grub/grub.cfg"
+  { cat <<'GRUB'
+serial --unit=0 --speed=115200
+terminal_input serial console
+terminal_output serial console
+set default="arcnode"
+set timeout=1
+menuentry "arcnode" {
     linux /install.amd/vmlinuz auto=true priority=critical preseed/file=/cdrom/preseed.cfg vga=788 console=tty0 console=ttyS0,115200 ---
     initrd /install.amd/initrd.gz
 }
 GRUB
+  } > "$grubcfg.new"
+  # strip the base config's own default/timeout so ours win, append the rest
+  grep -vE '^\s*(set default|set timeout|set default=|timeout)' "$grubcfg" >> "$grubcfg.new"
+  mv "$grubcfg.new" "$grubcfg"
 fi
 
 echo "== repack hybrid BIOS+UEFI with xorriso =="
