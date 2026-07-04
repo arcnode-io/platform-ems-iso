@@ -37,7 +37,7 @@ rsync -a --exclude '.git' "$HERE/ansible" "$HERE/cfg.yml" "$HERE/install" "$WORK
 echo "== make it auto-install (BIOS isolinux + UEFI grub) =="
 # BIOS text menu
 if [ -f "$WORK/iso/isolinux/txt.cfg" ]; then
-  sed -i '1i default arcnode\nlabel arcnode\n  menu label ^Install ARCNODE appliance (unattended)\n  kernel /install.amd/vmlinuz\n  append vga=788 initrd=/install.amd/initrd.gz auto=true priority=critical preseed/file=/cdrom/preseed.cfg ---' \
+  sed -i '1i default arcnode\nlabel arcnode\n  menu label ^Install ARCNODE appliance (unattended)\n  kernel /install.amd/vmlinuz\n  append vga=788 initrd=/install.amd/initrd.gz auto=true priority=critical preseed/file=/cdrom/preseed.cfg console=tty0 console=ttyS0,115200 ---' \
     "$WORK/iso/isolinux/txt.cfg"
 fi
 # UEFI grub menu
@@ -45,7 +45,7 @@ if [ -f "$WORK/iso/boot/grub/grub.cfg" ]; then
   cat >> "$WORK/iso/boot/grub/grub.cfg" <<'GRUB'
 menuentry "Install ARCNODE appliance (unattended)" {
     set background_color=black
-    linux /install.amd/vmlinuz auto=true priority=critical preseed/file=/cdrom/preseed.cfg vga=788 ---
+    linux /install.amd/vmlinuz auto=true priority=critical preseed/file=/cdrom/preseed.cfg vga=788 console=tty0 console=ttyS0,115200 ---
     initrd /install.amd/initrd.gz
 }
 GRUB
