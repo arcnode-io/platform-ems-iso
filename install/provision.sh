@@ -16,6 +16,12 @@ install -d /opt/arcnode/ansible
 cp -a "$REPO/ansible/." /opt/arcnode/ansible/
 install -m 0644 "$REPO/cfg.yml" /opt/arcnode/cfg.yml
 
+# airgap image bundle → where the stack role loads it before compose up
+if ls "$REPO"/images/*.tar >/dev/null 2>&1; then
+  install -d /opt/arcnode/images
+  cp "$REPO"/images/*.tar /opt/arcnode/images/
+fi
+
 # Vendored collection (airgap — never galaxy).
 ansible-galaxy collection install /opt/arcnode/ansible/collections/*.tar.gz -p /opt/arcnode/ansible/vendored_collections --force
 
