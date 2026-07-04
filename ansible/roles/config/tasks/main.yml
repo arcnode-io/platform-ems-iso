@@ -1,0 +1,26 @@
+# Render per-service cfg.customer.yml files + place the DTM. Each service's
+# loader deep-merges its customer YAML over the baked cfg.defaults.yml
+# (CFG_CUSTOMER_PATH). Mounted read-only into the matching container.
+- name: Config dir
+  ansible.builtin.file:
+    path: /opt/arcnode/stack/config
+    state: directory
+    mode: "0755"
+
+- name: Place DTM (device topology — gateway + device-api boot from it)
+  ansible.builtin.copy:
+    src: dtm.json
+    dest: /opt/arcnode/stack/config/dtm.json
+    mode: "0644"
+
+- name: Render gateway cfg.customer.yml
+  ansible.builtin.template:
+    src: gateway-cfg.customer.yml.j2
+    dest: /opt/arcnode/stack/config/gateway-cfg.customer.yml
+    mode: "0644"
+
+- name: Render HMI cfg.customer.yml
+  ansible.builtin.template:
+    src: hmi-cfg.customer.yml.j2
+    dest: /opt/arcnode/stack/config/hmi-cfg.customer.yml
+    mode: "0644"

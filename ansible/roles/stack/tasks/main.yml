@@ -1,0 +1,13 @@
+# Render the compose, then converge it. Idempotent: docker_compose_v2 with
+# state=present is a no-op when the stack already matches.
+- name: Render compose
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: /opt/arcnode/stack/compose.yml
+    mode: "0644"
+
+- name: Bring up the stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/arcnode/stack
+    state: present
+    pull: missing

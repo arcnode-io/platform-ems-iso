@@ -1,3 +1,11 @@
 # ARCNODE appliance config vars. Config only — secrets live in env, never here.
-greeting: arcnode
+site_id: arcnode-appliance
 http_port: 80
+log_level: INFO
+
+# Ollama model assignments by ROLE (ADR-024). Consumers reference role names,
+# staying decoupled from specific versions. Used once analyst/ollama land.
+ai_models:
+  chat: qwen3:30b-a3b
+  code: qwen2.5-coder:7b
+  embedder: nomic-embed-text

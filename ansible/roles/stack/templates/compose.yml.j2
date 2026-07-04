@@ -1,0 +1,110 @@
+# ARCNODE appliance stack. Same topology as the commercial cloud compose, but
+# persistence is LOCAL containers (airgap can't reach managed Tiger/Aurora) and
+# the gateway's default DTM binds to on-box mock protocol servers (self-test).
+# Service-name DNS on the default bridge network. Secrets come from .env.
+#
+# App services consume the WHOLE .env via env_file (proven commercial pattern) —
+# never cherry-pick per-service env vars: device-api dispenses operator+viewer
+# broker creds, so it needs every MQTT_*_PASSWORD, not just its own.
+#
+# Increment 1 = core telemetry path (gateway→mocks→broker→writer→timescale + HMI).
+# analyst-server / ollama / minio / neo4j / observability layer in next.
+
+x-restart: &restart
+  restart: unless-stopped
+x-appenv: &appenv
+  env_file: [.env]
+
+services:
+  postgres-timeseries:
+    <<: *restart
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: arcnode
+      POSTGRES_PASSWORD: ${PG_TS_PW}
+      POSTGRES_DB: timeseries
+    volumes:
+      - ts-data:/var/lib/postgresql/data
+
+  postgres-document:
+    <<: *restart
+    image: postgres:16.6
+    environment:
+      POSTGRES_USER: arcnode
+      POSTGRES_PASSWORD: ${PG_DOC_PW}
+      POSTGRES_DB: document
+    volumes:
+      - doc-data:/var/lib/postgresql/data
+
+  hivemq:
+    # ems-hivemq: File-RBAC baked, Allow-All stripped → rejects anonymous,
+    # enforces per-role topic ACL. credentials.xml bind-mounted from secrets role.
+    <<: *restart
+    image: public.ecr.aws/y1d2j6a8/ems-hivemq:latest
+    volumes:
+      - ./credentials.xml:/opt/hivemq/extensions/hivemq-file-rbac-extension/conf/credentials.xml:ro
+
+  device-api:
+    <<: [*restart, *appenv]
+    image: public.ecr.aws/y1d2j6a8/ems-device-api:latest
+    environment:
+      ENV: beta
+      BOOT_DTM_PATH: /app/dtm.json
+      BROKER_URL: tcp://hivemq:1883
+    volumes:
+      - ./config/dtm.json:/app/dtm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:3000/health\",r=>process.exit(r.statusCode<500?0:1)).on(\"error\",()=>process.exit(1))'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+    depends_on:
+      hivemq: {condition: service_started}
+      postgres-document: {condition: service_started}
+
+  telemetry-writer:
+    <<: [*restart, *appenv]
+    image: public.ecr.aws/y1d2j6a8/ems-telemetry-writer:latest
+    environment:
+      BROKER: hivemq
+    depends_on:
+      hivemq: {condition: service_started}
+      postgres-timeseries: {condition: service_started}
+
+  mock-modbus-server:   {<<: *restart, image: "public.ecr.aws/y1d2j6a8/mock-modbus-server:latest"}
+  mock-snmp-agent:      {<<: *restart, image: "public.ecr.aws/y1d2j6a8/mock-snmp-agent:latest"}
+  mock-redfish-service: {<<: *restart, image: "public.ecr.aws/y1d2j6a8/mock-redfish-service:latest"}
+  mock-dnp3-outstation: {<<: *restart, image: "public.ecr.aws/y1d2j6a8/mock-dnp3-outstation:latest"}
+  mock-bacnet-device:   {<<: *restart, image: "public.ecr.aws/y1d2j6a8/mock-bacnet-device:latest"}
+
+  industrial-gateway:
+    <<: [*restart, *appenv]
+    image: public.ecr.aws/y1d2j6a8/ems-industrial-gateway:latest
+    environment:
+      ENV: beta
+      CFG_CUSTOMER_PATH: /app/cfg.customer.yml
+    volumes:
+      - ./config/gateway-cfg.customer.yml:/app/cfg.customer.yml:ro
+    depends_on:
+      hivemq: {condition: service_started}
+      device-api: {condition: service_healthy}
+      mock-modbus-server: {condition: service_started}
+      mock-snmp-agent: {condition: service_started}
+      mock-redfish-service: {condition: service_started}
+      mock-dnp3-outstation: {condition: service_started}
+      mock-bacnet-device: {condition: service_started}
+
+  hmi:
+    <<: [*restart, *appenv]
+    image: public.ecr.aws/y1d2j6a8/ems-hmi:latest
+    ports:
+      - "{{ http_port | default(80) }}:80"
+    volumes:
+      - ./config/hmi-cfg.customer.yml:/opt/arcnode/hmi-cfg.customer.yml:ro
+    depends_on:
+      device-api: {condition: service_healthy}
+
+volumes:
+  ts-data:
+  doc-data:

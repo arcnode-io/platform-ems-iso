@@ -1,0 +1,6 @@
+# Appliance override for the industrial-gateway. Service-name DNS on the
+# compose network. Real deploys point device bindings at customer OT devices;
+# the shipped default DTM binds to the on-box mock protocol servers (self-test).
+site_id: {{ site_id | default('arcnode-appliance') }}
+device_api_url: http://device-api:3000
+broker_url: tcp://hivemq:1883
