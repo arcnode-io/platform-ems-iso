@@ -13,7 +13,7 @@ docker run --rm -v "$OUT:/debs" debian:12 bash -c '
   curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list
   apt-get update -qq
-  apt-get install -y --download-only ansible-core rsync docker-ce docker-ce-cli containerd.io docker-compose-plugin >/dev/null
+  apt-get install -y --download-only ansible-core rsync ufw fail2ban python3-systemd docker-ce docker-ce-cli containerd.io docker-compose-plugin >/dev/null
   cp /var/cache/apt/archives/*.deb /debs/
 '
 echo "deb closure: $(find "$OUT" -name "*.deb" | wc -l) packages, $(du -sh "$OUT" | cut -f1)"

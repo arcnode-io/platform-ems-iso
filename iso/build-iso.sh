@@ -33,6 +33,9 @@ rsync -a --exclude '.git' "$HERE/ansible" "$HERE/cfg.yml" "$HERE/install" "$WORK
 # offline base-package debs (docker + ansible + deps) — tools/bundle-debs.sh
 DEBS="${DEBS:-$WORK/debs}"
 [ -d "$DEBS" ] && { mkdir -p "$WORK/iso/arcnode/debs"; cp "$DEBS"/*.deb "$WORK/iso/arcnode/debs/"; echo "baked debs: $(find "$DEBS" -name '*.deb' | wc -l)"; }
+# offline docker image bundle (tools/bundle-images.sh)
+IMAGES="${IMAGES:-$WORK/images}"
+[ -d "$IMAGES" ] && { mkdir -p "$WORK/iso/arcnode/images"; cp "$IMAGES"/*.tar "$WORK/iso/arcnode/images/"; echo "baked images: $(du -sh "$IMAGES" | cut -f1)"; }
 # TODO(payload): images bundle.tar (task 6), ollama models (task 8), DB seeds
 
 echo "== make it auto-install (BIOS isolinux + UEFI grub) =="

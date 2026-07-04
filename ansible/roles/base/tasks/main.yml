@@ -5,7 +5,7 @@
   ansible.builtin.apt:
     name: [ufw, fail2ban, python3-systemd]
     state: present
-    update_cache: true
+    update_cache: false
 
 - name: UFW default deny incoming
   ansible.builtin.command: ufw default deny incoming
