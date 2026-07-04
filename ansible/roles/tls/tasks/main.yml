@@ -1,0 +1,41 @@
+# Generate a self-signed TLS cert for the 443 ingress, unless the operator
+# dropped their own at /opt/arcnode/tls/custom.{crt,key}. SAN covers hostname +
+# the box IP so a browser on the LAN validates the name it dialed.
+- name: TLS dir
+  ansible.builtin.file:
+    path: /opt/arcnode/stack/tls
+    state: directory
+    mode: "0755"
+
+- name: Operator-supplied cert present?
+  ansible.builtin.stat:
+    path: /opt/arcnode/tls/custom.crt
+  register: tls_custom
+
+- name: Install operator cert
+  when: tls_custom.stat.exists
+  ansible.builtin.copy:
+    remote_src: true
+    src: "/opt/arcnode/tls/{{ item.s }}"
+    dest: "/opt/arcnode/stack/tls/{{ item.d }}"
+    mode: "0600"
+  loop:
+    - {s: custom.crt, d: cert.pem}
+    - {s: custom.key, d: key.pem}
+
+- name: Generate self-signed cert
+  when: not tls_custom.stat.exists
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -x509 -newkey rsa:2048 -nodes
+      -keyout /opt/arcnode/stack/tls/key.pem
+      -out /opt/arcnode/stack/tls/cert.pem -days 3650
+      -subj "/CN={{ ansible_hostname }}"
+      -addext "subjectAltName=DNS:{{ ansible_hostname }},IP:{{ ansible_default_ipv4.address | default('127.0.0.1') }}"
+    creates: /opt/arcnode/stack/tls/cert.pem
+
+- name: Render ingress config
+  ansible.builtin.template:
+    src: ingress.conf.j2
+    dest: /opt/arcnode/stack/ingress.conf
+    mode: "0644"

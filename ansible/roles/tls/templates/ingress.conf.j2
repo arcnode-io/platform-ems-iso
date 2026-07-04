@@ -1,0 +1,31 @@
+# TLS terminator. 80 → 443 redirect; 443 → HMI (which does app-level routing to
+# device-api / analyst / broker). resolver + variable proxy_pass so a restarting
+# HMI doesn't take the ingress down with it.
+map $http_upgrade $connection_upgrade { default upgrade; "" close; }
+
+server {
+  listen 80;
+  server_name _;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name _;
+  ssl_certificate     /etc/nginx/tls/cert.pem;
+  ssl_certificate_key /etc/nginx/tls/key.pem;
+  resolver 127.0.0.11 valid=10s ipv6=off;
+
+  location / {
+    set $hmi http://hmi:80;
+    proxy_pass $hmi;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header Upgrade $http_upgrade;      # wss://host/mqtt passthrough
+    proxy_set_header Connection $connection_upgrade;
+    proxy_read_timeout 86400s;
+  }
+}

@@ -112,6 +112,10 @@ services:
     image: neo4j:5.26-community
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PW}
+      # Default 512MB heap OOMs applying the full analyst graph seed.
+      NEO4J_server_memory_heap_initial__size: 2G
+      NEO4J_server_memory_heap_max__size: 4G
+      NEO4J_server_memory_pagecache__size: 2G
     volumes:
       - neo4j-data:/data
 
@@ -155,13 +159,23 @@ services:
   hmi:
     <<: [*restart, *appenv]
     image: public.ecr.aws/y1d2j6a8/ems-hmi:latest
-    ports:
-      - "{{ http_port | default(80) }}:80"
     volumes:
       - ./config/hmi-cfg.customer.yml:/opt/arcnode/hmi-cfg.customer.yml:ro
     depends_on:
       device-api: {condition: service_healthy}
       analyst-server: {condition: service_started}
+
+  ingress:
+    <<: *restart
+    image: nginx:1.27-alpine
+    ports:
+      - "{{ http_port | default(80) }}:80"
+      - "443:443"
+    volumes:
+      - ./tls:/etc/nginx/tls:ro
+      - ./ingress.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      hmi: {condition: service_started}
 
 volumes:
   ts-data:

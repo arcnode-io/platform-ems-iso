@@ -15,5 +15,6 @@
     - {role: docker, tags: [docker]}
     - {role: secrets, tags: [secrets, stack]}
     - {role: config, tags: [config, stack]}
+    - {role: tls, tags: [tls, stack]}
     - {role: stack, tags: [stack]}
     - {role: health, tags: [health, stack]}
