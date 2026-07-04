@@ -30,9 +30,10 @@ echo "== assemble airgap payload → /arcnode on the ISO =="
 # tools/bundle-images.sh + (task 7/8) and copied in here.
 mkdir -p "$WORK/iso/arcnode"
 rsync -a --exclude '.git' "$HERE/ansible" "$HERE/cfg.yml" "$HERE/install" "$WORK/iso/arcnode/"
-# TODO(payload): cp "$BUNDLE/bundle.tar" "$WORK/iso/arcnode/images/"  (task 6 output)
-# TODO(payload): cp -a "$DEBS" "$WORK/iso/arcnode/debs/"             (task 7 output)
-# TODO(payload): cp -a "$MODELS" "$WORK/iso/arcnode/ollama-models/"  (task 8 output)
+# offline base-package debs (docker + ansible + deps) — tools/bundle-debs.sh
+DEBS="${DEBS:-$WORK/debs}"
+[ -d "$DEBS" ] && { mkdir -p "$WORK/iso/arcnode/debs"; cp "$DEBS"/*.deb "$WORK/iso/arcnode/debs/"; echo "baked debs: $(find "$DEBS" -name '*.deb' | wc -l)"; }
+# TODO(payload): images bundle.tar (task 6), ollama models (task 8), DB seeds
 
 echo "== make it auto-install (BIOS isolinux + UEFI grub) =="
 # BIOS: replace isolinux.cfg entirely — no graphical menu, boot our entry

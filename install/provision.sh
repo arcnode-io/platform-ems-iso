@@ -1,21 +1,25 @@
 #!/bin/bash
-# Bench bootstrap — run ONCE against a freshly-installed appliance that still
-# has network (at our facility, before it ships airgapped). Installs ansible,
-# drops the stack layer at /opt/arcnode, then hands convergence to systemd.
-# After this the box self-converges every boot with no control node.
+# First-boot bootstrap. Runs OFFLINE from the ISO payload: installs docker +
+# ansible + rsync from debs baked into the payload (dpkg — no apt mirror), drops
+# the stack layer at /opt/arcnode, installs the vendored collection, and hands
+# convergence to systemd. The box then self-converges every boot with no network.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
-apt-get update
-apt-get install -y ansible-core rsync
+# Offline base packages: docker engine + compose plugin + ansible-core + rsync.
+# dpkg from the baked closure; a bench run (network up) can still apt-fix.
+if ls "$REPO"/debs/*.deb >/dev/null 2>&1; then
+  dpkg -i "$REPO"/debs/*.deb 2>/dev/null || dpkg --configure -a || true
+fi
 
-install -d /opt/arcnode
-rsync -a "$REPO/ansible/" /opt/arcnode/ansible/
+install -d /opt/arcnode/ansible
+cp -a "$REPO/ansible/." /opt/arcnode/ansible/
 install -m 0644 "$REPO/cfg.yml" /opt/arcnode/cfg.yml
 
-# Airgap: install the vendored collection from the repo, never from galaxy.
+# Vendored collection (airgap — never galaxy).
 ansible-galaxy collection install /opt/arcnode/ansible/collections/*.tar.gz --force
 
 install -m 0644 "$REPO/install/arcnode.service" /etc/systemd/system/arcnode.service
 systemctl daemon-reload
-systemctl enable --now arcnode.service
+systemctl enable arcnode.service
+systemctl start arcnode.service || true
