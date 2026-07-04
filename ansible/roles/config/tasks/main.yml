@@ -24,3 +24,15 @@
     src: hmi-cfg.customer.yml.j2
     dest: /opt/arcnode/stack/config/hmi-cfg.customer.yml
     mode: "0644"
+
+- name: Render analyst cfg.customer.yml
+  ansible.builtin.template:
+    src: analyst-cfg.customer.yml.j2
+    dest: /opt/arcnode/stack/config/analyst-cfg.customer.yml
+    mode: "0644"
+
+- name: Place pgvector extension init
+  ansible.builtin.copy:
+    src: vector-init.sql
+    dest: /opt/arcnode/stack/config/vector-init.sql
+    mode: "0644"

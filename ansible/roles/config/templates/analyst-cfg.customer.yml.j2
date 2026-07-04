@@ -1,0 +1,16 @@
+# Appliance override for analyst-server. CRITICAL: analyst's beta env defaults
+# to Bedrock (cloud) — airgap has no AWS, so force local Ollama. Models come
+# from cfg.yml ai_models; graph = local neo4j (GRAPH_URL env); vector seed is a
+# precomputed dump (no embed model needed at seed time).
+site_id: {{ site_id | default('arcnode-appliance') }}
+settings:
+  llm_provider: ollama
+  ollama_base_url: http://ollama:11434/v1
+  ollama_chat_model: {{ ai_models.chat }}
+  ollama_embedding_model: {{ ai_models.embedder }}
+  vector_seed_url: https://arcnode-public.s3.us-east-1.amazonaws.com/seed/vector-airgapped.sql.gz
+graph:
+  backend: neo4j
+market:
+  wholesale_market: ercot
+  settlement_point: HB_NORTH

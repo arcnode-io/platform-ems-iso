@@ -21,9 +21,13 @@ compose:
   stage: check
   image: docker:27-cli
   script:
-    # Render + validate the compose the appliance actually ships.
-    - apk add --no-cache gettext >/dev/null 2>&1 || true
-    - docker compose -f <(sed 's/{{ http_port | default(80) }}/80/' ansible/roles/stack/templates/compose.yml.j2) --env-file /dev/null config >/dev/null
+    # Render + validate the compose the appliance actually ships. Needs a .env
+    # present for ${VAR} interpolation (empty values are fine for a structural
+    # config check).
+    - mkdir -p /tmp/cv
+    - sed 's/{{ http_port | default(80) }}/80/' ansible/roles/stack/templates/compose.yml.j2 > /tmp/cv/compose.yml
+    - ': > /tmp/cv/.env'
+    - docker compose -f /tmp/cv/compose.yml config >/dev/null
 
 mirror:
   stage: mirror

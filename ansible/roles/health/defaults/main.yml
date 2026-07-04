@@ -1,6 +1,7 @@
 # Core services the health gate requires. HMI is intentionally absent until its
 # image tolerates a missing analyst upstream (nginx resolver + variable
-# proxy_pass); analyst + observability join when that profile is enabled.
+# proxy_pass); analyst-server stays out — its first-boot full-graph seed can exceed any
+# reasonable gate window; it self-heals once seeded (guard skips re-seed).
 health_core_services:
   - stack-postgres-timeseries-1
   - stack-postgres-document-1
@@ -8,3 +9,4 @@ health_core_services:
   - stack-device-api-1
   - stack-telemetry-writer-1
   - stack-industrial-gateway-1
+  - stack-hmi-1

@@ -95,6 +95,63 @@ services:
       mock-dnp3-outstation: {condition: service_started}
       mock-bacnet-device: {condition: service_started}
 
+  # ---- data layer for analyst (local; airgap can't use managed) ----
+  postgres-vector:
+    <<: *restart
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: arcnode
+      POSTGRES_PASSWORD: ${PG_VEC_PW}
+      POSTGRES_DB: vector
+    volumes:
+      - vec-data:/var/lib/postgresql/data
+      - ./config/vector-init.sql:/docker-entrypoint-initdb.d/01-vector.sql:ro
+
+  neo4j:
+    <<: *restart
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PW}
+    volumes:
+      - neo4j-data:/data
+
+  minio:
+    <<: *restart
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+
+  ollama:
+    <<: *restart
+    image: ollama/ollama:0.6.8
+    volumes:
+      - ollama-models:/root/.ollama
+
+  analyst-server:
+    <<: [*restart, *appenv]
+    image: public.ecr.aws/y1d2j6a8/ems-analyst-server:latest
+    environment:
+      ENV: beta
+      CFG_CUSTOMER_PATH: /app/cfg.customer.yml
+    volumes:
+      - ./config/analyst-cfg.customer.yml:/app/cfg.customer.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(\"http://localhost:8000/health\",timeout=3).status<500 else 1)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 300s   # first boot seeds the full graph dump (minutes); the
+                           # mcp seed guard skips it on subsequent boots
+    depends_on:
+      postgres-vector: {condition: service_started}
+      postgres-document: {condition: service_started}
+      neo4j: {condition: service_started}
+      ollama: {condition: service_started}
+
   hmi:
     <<: [*restart, *appenv]
     image: public.ecr.aws/y1d2j6a8/ems-hmi:latest
@@ -104,7 +161,12 @@ services:
       - ./config/hmi-cfg.customer.yml:/opt/arcnode/hmi-cfg.customer.yml:ro
     depends_on:
       device-api: {condition: service_healthy}
+      analyst-server: {condition: service_started}
 
 volumes:
   ts-data:
   doc-data:
+  vec-data:
+  neo4j-data:
+  minio-data:
+  ollama-models:
