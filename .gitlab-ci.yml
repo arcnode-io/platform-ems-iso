@@ -6,7 +6,7 @@ lint:
   stage: check
   image: python:3.13-slim
   script:
-    - pip install --quiet ansible-core ansible-lint yamllint
+    - pip install --quiet --break-system-packages ansible-core ansible-lint yamllint
     - ansible-galaxy collection install ansible/collections/*.tar.gz
     - yamllint ansible/ cfg.yml
     - ansible-lint ansible/site.yml
