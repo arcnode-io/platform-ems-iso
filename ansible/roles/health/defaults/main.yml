@@ -2,6 +2,9 @@
 # image tolerates a missing analyst upstream (nginx resolver + variable
 # proxy_pass); analyst-server stays out — its first-boot full-graph seed can exceed any
 # reasonable gate window; it self-heals once seeded (guard skips re-seed).
+# der-control-api stays out too, same reason as the others: no
+# public.ecr.aws/y1d2j6a8/ems-der-control-api image published yet — add it
+# once ☕ backend-engineer ships one, or every converge fails the gate.
 health_core_services:
   - stack-postgres-timeseries-1
   - stack-postgres-document-1

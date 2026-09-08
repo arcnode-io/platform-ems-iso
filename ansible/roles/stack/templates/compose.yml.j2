@@ -35,6 +35,9 @@ services:
       POSTGRES_DB: document
     volumes:
       - doc-data:/var/lib/postgresql/data
+      # der-control-api's own database, created alongside `document` on first
+      # boot — not a shared schema. See document-init.sql.
+      - ./config/document-init.sql:/docker-entrypoint-initdb.d/01-dercontrol.sql:ro
 
   hivemq:
     # ems-hivemq: File-RBAC baked, Allow-All stripped → rejects anonymous,
@@ -59,6 +62,20 @@ services:
       timeout: 5s
       retries: 18
       start_period: 20s
+    depends_on:
+      hivemq: {condition: service_started}
+      postgres-document: {condition: service_started}
+
+  # IEEE 2030.5 / OpenADR DER control intake. Utility/aggregator POSTs
+  # DERControl events → persists to its own database in postgres-document
+  # (DER_CONTROL_URL, ddl-auto=update) → republishes setpoints as measurement
+  # samples on the der_dispatch singleton device. No published port yet — the
+  # utility-facing HTTPS side needs mutual TLS (own follow-up); same as cloud.
+  der-control-api:
+    <<: [*restart, *appenv]
+    image: public.ecr.aws/y1d2j6a8/ems-der-control-api:latest
+    environment:
+      ENV: beta
     depends_on:
       hivemq: {condition: service_started}
       postgres-document: {condition: service_started}

@@ -36,3 +36,9 @@
     src: vector-init.sql
     dest: /opt/arcnode/stack/config/vector-init.sql
     mode: "0644"
+
+- name: Place der-control-api database init
+  ansible.builtin.copy:
+    src: document-init.sql
+    dest: /opt/arcnode/stack/config/document-init.sql
+    mode: "0644"
