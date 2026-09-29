@@ -24,10 +24,19 @@ compose:
     # Render + validate the compose the appliance actually ships. Needs a .env
     # present for ${VAR} interpolation (empty values are fine for a structural
     # config check).
-    - mkdir -p /tmp/cv
-    - sed 's/{{ http_port | default(80) }}/80/' ansible/roles/stack/templates/compose.yml.j2 > /tmp/cv/compose.yml
-    - ': > /tmp/cv/.env'
-    - docker compose -f /tmp/cv/compose.yml config >/dev/null
+    #
+    # Reason: this project's runner is a shell executor, so `image:` above is
+    # ignored and this script runs directly on the runner host's own
+    # filesystem, not an isolated container — confirmed via a script_failure
+    # that a same-commit retry (no code change) immediately passed. A fixed
+    # path here (previously /tmp/cv) is a real shared, never-cleaned location
+    # on that persistent host, not a fresh per-job temp dir; mktemp -d is the
+    # actual fix, not a workaround — every run gets a genuinely new directory.
+    - CV_DIR=$(mktemp -d)
+    - sed 's/{{ http_port | default(80) }}/80/' ansible/roles/stack/templates/compose.yml.j2 > "$CV_DIR/compose.yml"
+    - ": > \"$CV_DIR/.env\""
+    - docker compose -f "$CV_DIR/compose.yml" config >/dev/null
+    - rm -rf "$CV_DIR"
 
 mirror:
   stage: mirror
